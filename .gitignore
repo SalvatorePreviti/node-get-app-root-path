@@ -1,0 +1,89 @@
+# build output
+
+out/
+dist/
+build/
+*.tgz
+*.zip
+.serverless
+
+# Admin configurations
+admin.env
+
+# Dependency directories
+typings
+node_modules
+bower_components
+
+# Logs
+logs
+*.log
+*.stackdump
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pid
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# IDEs
+**/.idea
+
+# Cache, hidden folders
+.aws
+.tmp
+.env
+.npm
+.temp
+.cache
+.grunt
+.installs
+.nyc_output
+.eslintcache
+.lock-wscript
+.cache-loader
+.yarn-integrity
+.node_repl_history
+
+# Coverage directory used by tools like istanbul, jscoverage/JSCover
+lib-cov
+coverage
+
+# Apple
+.apdisk
+.Trashes
+.AppleDB
+.DS_Store
+.fseventsd
+.LSOverride
+.AppleDouble
+.AppleDesktop
+Temporary Items
+.Spotlight-V100
+.TemporaryItems
+.VolumeIcon.icns
+Network Trash Folder
+.DocumentRevisions-V100
+.com.apple.timemachine.donotpresent
+
+# Icon must end with two \r
+Icon
+
+
+# Thumbnails
+._*
+
+# Windows
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+ehthumbs.db
+$RECYCLE.BIN/
+[Dd]esktop.ini
+*.lnkThumbs.db
