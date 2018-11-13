@@ -1,7 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 
-let globalValue
+let appRootPathValue
+
+function doNothing() {}
 
 function loadAppRootPath() {
   let result
@@ -55,27 +57,45 @@ function loadAppRootPath() {
   return result
 }
 
+/**
+ * Sets the app root path value
+ *
+ * @param {string|undefined} value The new app root path value.
+ * @returns {void}
+ */
 function setAppRootPath(value) {
   if (!value) {
     value = undefined
   } else if (typeof value !== 'string') {
     throw new TypeError('setAppRootPath requires a string')
   }
-  globalValue = value
+  appRootPathValue = value
 }
 
+/**
+ * Gets the app root path (the root folder for the application)
+ *
+ * @returns {string} The app root path, the root folder for the application
+ */
 function getAppRootPath() {
-  if (globalValue) {
-    return globalValue
+  if (appRootPathValue) {
+    return appRootPathValue
   }
+
   if (process.env.APP_ROOT_PATH) {
     return path.resolve(process.env.APP_ROOT_PATH)
   }
 
-  globalValue = loadAppRootPath()
-  return globalValue
+  appRootPathValue = loadAppRootPath()
+  return appRootPathValue
 }
 
+/**
+ * Gets the "module" object for the given module or file name
+ *
+ * @param {*} module The module
+ * @returns {*} The NodeJS module object.
+ */
 function getModule(module) {
   let mpath
   if (typeof module === 'string') {
@@ -114,43 +134,69 @@ function getModule(module) {
  * @returns {*} The module
  */
 function makeModuleUnloadable(module, exports = undefined) {
-  let result = module
+  let m = module
   try {
-    result = getModule(module)
-
-    result.loaded = true
-
-    if (exports === undefined) {
-      exports = result.exports
+    m = getModule(module)
+    if (m === undefined) {
+      return m
     }
 
-    const key = result.id || result.filename
+    m.loaded = true
+
+    if (exports === undefined) {
+      exports = m.exports
+    }
+
+    const key = m.filename
     if (key) {
       Object.defineProperty(require.cache, key, {
-        value: result,
-        writable: false,
-        configurable: true,
+        get() {
+          return m
+        },
+        set: doNothing,
+        configurable: false,
         enumerable: false
       })
     }
   } catch (e) {
     return module
   }
-  return result
+  return m
+}
+
+/**
+ * Given an absolute path, returns the shortest path to the app root path.
+ * This function does nothing if the given path is not absolute.
+ *
+ * @param {string} file The path to relativize.
+ * @returns {string} The relativize or absolute path (depending which one is shorter)
+ */
+function shortenPath(file) {
+  if (path.isAbsolute(file)) {
+    let relativized = path.relative(getAppRootPath(), file)
+    if (!relativized.startsWith('.') && !relativized.startsWith(file.sep)) {
+      relativized = `.${path.sep}${relativized}`
+    }
+    if (relativized.length < file.length) {
+      file = relativized
+    }
+  }
+  return file
 }
 
 getAppRootPath.path = ''
-getAppRootPath.getModule = getModule
 getAppRootPath.makeModuleUnloadable = makeModuleUnloadable
+getAppRootPath.shortenPath = shortenPath
+getAppRootPath.getModule = getModule
 
 Object.defineProperties(getAppRootPath, {
   path: { get: getAppRootPath, set: setAppRootPath, configurable: true, enumerable: true },
   toJSON: { value: getAppRootPath, enumerable: false, writable: true, configurable: true },
   valueOf: { value: getAppRootPath, enumerable: false, writable: true, configurable: true },
   toString: { value: getAppRootPath, enumerable: false, writable: true, configurable: true },
-  loadAppRootPath: { value: loadAppRootPath, enumerable: false, writable: true, configurable: true },
-  getModule: { value: getModule, enumerable: false, writable: true, configurable: true },
-  makeModuleUnloadable: { value: getModule, enumerable: false, writable: true, configurable: true }
+  makeModuleUnloadable: { value: makeModuleUnloadable, enumerable: false, writable: true, configurable: true },
+  shortenPath: { value: shortenPath, enumerable: false, writable: true, configurable: true },
+  getModule: { value: getModule, enumerable: false, writable: true, configurable: true }
 })
 
 module.exports = getAppRootPath
