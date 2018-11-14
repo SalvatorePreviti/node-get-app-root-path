@@ -1,8 +1,4 @@
-declare function getAppRootPath(): string
-
-type getAppRootPathFunction = () => string
-
-interface getAppRootPath {
+interface GetAppRootPathModule {
   /**
    * Gets the app root path (the root folder for the application)
    *
@@ -57,7 +53,7 @@ interface getAppRootPath {
    * @param {NodeJS.module|string} module The module to unload
    * @returns {boolean} True if the module was unloaded, false if not
    */
-  unloadModule(module: NodeJS.module | string): boolean
+  unloadModule(module: NodeJS.Module | string): boolean
 
   /**
    * Unload all NodeJS modules (except the unloadable modules)
@@ -75,5 +71,7 @@ interface getAppRootPath {
   /** Returns getAppRootPath() */
   toString(): string
 }
+
+declare const getAppRootPath: GetAppRootPathModule
 
 export = getAppRootPath
