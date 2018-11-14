@@ -8,18 +8,45 @@ Gets a node application root and provides manipulation functions for modules cac
 
 ### Table of Contents
 
--   [setAppRootPath](#setapprootpath)
+-   [appRootPathValue](#approotpathvalue)
+-   [isGlobalDirectory](#isglobaldirectory)
     -   [Parameters](#parameters)
+-   [m](#m)
+-   [loadAppRootPath](#loadapprootpath)
+-   [setAppRootPath](#setapprootpath)
+    -   [Parameters](#parameters-1)
 -   [getAppRootPath](#getapprootpath)
 -   [getModule](#getmodule)
-    -   [Parameters](#parameters-1)
--   [makeModuleUnloadable](#makemoduleunloadable)
     -   [Parameters](#parameters-2)
--   [unloadModule](#unloadmodule)
+-   [makeModuleUnloadable](#makemoduleunloadable)
     -   [Parameters](#parameters-3)
+-   [unloadModule](#unloadmodule)
+    -   [Parameters](#parameters-4)
 -   [unloadAllModules](#unloadallmodules)
 -   [shortenPath](#shortenpath)
-    -   [Parameters](#parameters-4)
+    -   [Parameters](#parameters-5)
+
+## appRootPathValue
+
+Type: ([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) \| [undefined](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/undefined))
+
+## isGlobalDirectory
+
+Checks if a directory is in the global node paths.
+
+### Parameters
+
+-   `dir` **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** The directory to check
+
+Returns **[boolean](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean)** True if the given directory is in a global node path, false if not
+
+## m
+
+Type: any
+
+## loadAppRootPath
+
+Returns **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** Computes the app root path.
 
 ## setAppRootPath
 
@@ -43,7 +70,7 @@ Gets the "module" object for the given module or file name
 
 ### Parameters
 
--   `module` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) | NodeJS.Module | {filename: [string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)})** The module
+-   `module` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) | NodeJS.Module | {filename: [string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)} | any)** The module
 -   `canRequire` **[boolean](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean)** True if the module can be loaded if it does not exists (optional, default `true`)
 
 Returns **(NodeJS.Module | [undefined](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/undefined))** The NodeJS module object.
@@ -55,7 +82,7 @@ Useful to override proxyquire behaviour or other scripts that tries to unload mo
 
 ### Parameters
 
--   `module` **(NodeJS.Module | [string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String))** The module to make unloadable
+-   `module` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) | NodeJS.Module | {filename: [string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)} | any)** The module to make unloadable
 -   `exports` **any** If not undefined, overrides the module.exports (optional, default `undefined`)
 
 Returns **(NodeJS.Module | [undefined](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/undefined))** The module
@@ -66,7 +93,7 @@ Unloads a module.
 
 ### Parameters
 
--   `module` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) | NodeJS.module)** The module to unload
+-   `module` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) | NodeJS.Module | {filename: [string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)} | any)** The module to unload
 
 Returns **[boolean](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean)** True if the module was unloaded, false if not
 
