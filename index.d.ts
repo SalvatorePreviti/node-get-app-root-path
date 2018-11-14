@@ -30,12 +30,14 @@ interface GetAppRootPathModule {
   shortenPath(file: string): string
 
   /**
-   * Gets the "module" object for the given module or file name
+   * Gets the "module" object for the given module or file name.
+   * This function never throws.
    *
    * @param {string|NodeJS.Module} module The module
+   * @param {boolean} [canRequire=true] If true (default), the module gets required if it was not required before. If false, only loaded modules are returned.
    * @returns {NodeJS.Module|undefined} The NodeJS module object.
    */
-  getModule(module: string | NodeJS.Module): NodeJS.Module | undefined
+  getModule(module: string | NodeJS.Module | any, canRequire?: boolean): NodeJS.Module | undefined
 
   /**
    * Makes a module unloadable.
@@ -45,7 +47,7 @@ interface GetAppRootPathModule {
    * @param {*} [exports=undefined] If not undefined, overrides the module.exports
    * @returns {NodeJS.Module|undefined} The module
    */
-  makeModuleUnloadable(module: NodeJS.Module | string, exports?: any): NodeJS.Module | undefined
+  makeModuleUnloadable(module: string | NodeJS.Module | any, exports?: any): NodeJS.Module | undefined
 
   /**
    * Unloads a module.
@@ -53,7 +55,7 @@ interface GetAppRootPathModule {
    * @param {NodeJS.module|string} module The module to unload
    * @returns {boolean} True if the module was unloaded, false if not
    */
-  unloadModule(module: NodeJS.Module | string): boolean
+  unloadModule(module: string | NodeJS.Module | any): boolean
 
   /**
    * Unload all NodeJS modules (except the unloadable modules)

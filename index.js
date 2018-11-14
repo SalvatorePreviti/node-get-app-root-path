@@ -1,17 +1,44 @@
 const fs = require('fs')
 const path = require('path')
 
+/** @type {string|undefined} */
 let appRootPathValue
 
 function doNothing() {}
 
+/**
+ * Checks if a directory is in the global node paths.
+ *
+ * @param {string} dir The directory to check
+ * @returns {boolean} True if the given directory is in a global node path, false if not
+ */
+function isGlobalDirectory(dir) {
+  /** @type {any} */
+  // eslint-disable-next-line global-require
+  const m = require('module')
+  const globalPaths = m.globalPaths
+  if (Array.isArray(globalPaths)) {
+    const len = globalPaths.length
+    for (let i = 0; i < len; ++i) {
+      const globalPath = globalPaths[i]
+      if (dir.indexOf(globalPath) === 0) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/** @returns {string} Computes the app root path. */
 function loadAppRootPath() {
   let result
   const dir = path.resolve(__dirname)
 
+  const requireMain = require.main
+
   // eslint-disable-next-line global-require
-  if ((require('module').globalPaths || []).some(x => dir.indexOf(x) === 0)) {
-    result = path.dirname(require.main.filename)
+  if (requireMain && isGlobalDirectory(dir)) {
+    result = path.dirname(requireMain.filename)
     const npmGlobalModuleDir = path.resolve(
       process.platform === 'win32' ? path.dirname(process.execPath) : path.dirname(path.dirname(process.execPath)),
       'lib',
@@ -25,8 +52,8 @@ function loadAppRootPath() {
     if (dir.indexOf(nodeModulesDir) !== -1) {
       result = dir.split(nodeModulesDir)[0]
     }
-    if (result === undefined) {
-      result = path.dirname(require.main.filename)
+    if (result === undefined && requireMain) {
+      result = path.dirname(requireMain.filename)
     }
   }
 
@@ -34,7 +61,7 @@ function loadAppRootPath() {
     if (!result) {
       result = process.cwd()
       if (!result) {
-        return '.'
+        return ''
       }
     }
 
@@ -63,7 +90,7 @@ function loadAppRootPath() {
     // Ignore error
   }
 
-  return result
+  return result || ''
 }
 
 /**
@@ -87,22 +114,22 @@ function setAppRootPath(value) {
  * @returns {string} The app root path, the root folder for the application
  */
 function getAppRootPath() {
-  if (appRootPathValue) {
-    return appRootPathValue
+  let result = appRootPathValue
+  if (!result) {
+    result = process.env.APP_ROOT_PATH
+    if (result) {
+      return path.resolve(result)
+    }
+    result = loadAppRootPath()
+    appRootPathValue = result
   }
-
-  if (process.env.APP_ROOT_PATH) {
-    return path.resolve(process.env.APP_ROOT_PATH)
-  }
-
-  appRootPathValue = loadAppRootPath()
-  return appRootPathValue
+  return result
 }
 
 /**
  * Gets the "module" object for the given module or file name
  *
- * @param {string|NodeJS.Module|{filename:string}} module The module
+ * @param {string|NodeJS.Module|{filename:string}|*} module The module
  * @param {boolean} [canRequire=true] True if the module can be loaded if it does not exists
  * @returns {NodeJS.Module|undefined} The NodeJS module object.
  */
@@ -176,7 +203,7 @@ function getModule(module, canRequire = true) {
  * Makes a module unloadable.
  * Useful to override proxyquire behaviour or other scripts that tries to unload modules.
  *
- * @param {NodeJS.Module|string} module The module to make unloadable
+ * @param {string|NodeJS.Module|{filename:string}|*} module The module to make unloadable
  * @param {*} [exports=undefined] If not undefined, overrides the module.exports
  * @returns {NodeJS.Module|undefined} The module
  */
@@ -215,7 +242,7 @@ function makeModuleUnloadable(module, exports) {
 /**
  * Unloads a module.
  *
- * @param {string | NodeJS.module} module The module to unload
+ * @param {string|NodeJS.Module|{filename:string}|*} module The module to unload
  * @returns {boolean} True if the module was unloaded, false if not
  */
 function unloadModule(module) {
@@ -292,7 +319,7 @@ function unloadAllModules() {
 function shortenPath(file) {
   if (path.isAbsolute(file)) {
     let relativized = path.relative(getAppRootPath(), file)
-    if (!relativized.startsWith('.') && !relativized.startsWith(file.sep)) {
+    if (!relativized.startsWith('.') && !relativized.startsWith(path.sep)) {
       relativized = `.${path.sep}${relativized}`
     }
     if (relativized.length < file.length) {
