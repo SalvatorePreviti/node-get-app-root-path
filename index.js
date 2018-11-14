@@ -30,14 +30,22 @@ function loadAppRootPath() {
     }
   }
 
-  if (!result) {
-    result = process.cwd() || '.'
-  }
-
   try {
+    if (!result) {
+      result = process.cwd()
+      if (!result) {
+        return '.'
+      }
+    }
+
+    // eslint-disable-next-line global-require
+    const homeDir = require('os').homedir() || path.resolve('/')
+
     let bestChoice = result
-    let current = result
-    for (;;) {
+    for (let current = result; ; ) {
+      if (current === homeDir || current === '/var/task') {
+        break
+      }
       if (fs.existsSync(path.join(current, 'package.json'))) {
         bestChoice = current
         if (current.indexOf(`${path.sep}node_modules${path.sep}`) <= 0) {
@@ -54,6 +62,7 @@ function loadAppRootPath() {
   } catch (e) {
     // Ignore error
   }
+
   return result
 }
 
@@ -93,20 +102,58 @@ function getAppRootPath() {
 /**
  * Gets the "module" object for the given module or file name
  *
- * @param {*} module The module
- * @returns {*} The NodeJS module object.
+ * @param {string|NodeJS.Module|{filename:string}} module The module
+ * @param {boolean} [canRequire=true] True if the module can be loaded if it does not exists
+ * @returns {NodeJS.Module|undefined} The NodeJS module object.
  */
-function getModule(module) {
-  let mpath
+function getModule(module, canRequire = true) {
+  const cache = require.cache
+  if (!cache) {
+    return undefined
+  }
+
   if (typeof module === 'string') {
-    mpath = require.resolve(module)
-    const found = require.cache[mpath]
-    if (found) {
-      module = found
-    } else {
-      // eslint-disable-next-line global-require
-      require(module)
-      module = require.cache[mpath]
+    let found = cache[module]
+    if (typeof found === 'object' && found !== null) {
+      return found
+    }
+
+    try {
+      if (!path.isAbsolute(module)) {
+        found = cache[require.resolve(module)]
+      }
+    } catch (error) {
+      // Ignore error
+    }
+
+    if (typeof found === 'object' && found !== null) {
+      return found
+    }
+
+    if (canRequire) {
+      try {
+        // eslint-disable-next-line global-require
+        require(module)
+      } catch (error) {
+        return undefined
+      }
+
+      found = cache[module]
+      if (typeof found === 'object' && found !== null) {
+        return found
+      }
+
+      try {
+        if (!path.isAbsolute(module)) {
+          found = cache[require.resolve(module)]
+        }
+      } catch (error) {
+        // Ignore error
+      }
+
+      if (typeof found === 'object' && found !== null) {
+        return found
+      }
     }
   }
 
@@ -114,12 +161,12 @@ function getModule(module) {
     return undefined
   }
 
-  if (!module.filename) {
-    module.filename = mpath
-  }
-
-  if (typeof module !== 'object') {
-    return undefined
+  const filename = module.filename
+  if (typeof filename === 'string') {
+    const found = cache[filename]
+    if (typeof found === 'object' && found !== null) {
+      return found
+    }
   }
 
   return module
@@ -129,19 +176,20 @@ function getModule(module) {
  * Makes a module unloadable.
  * Useful to override proxyquire behaviour or other scripts that tries to unload modules.
  *
- * @param {NodeModule|string} module The module to make unloadable
+ * @param {NodeJS.Module|string} module The module to make unloadable
  * @param {*} [exports=undefined] If not undefined, overrides the module.exports
- * @returns {*} The module
+ * @returns {NodeJS.Module|undefined} The module
  */
-function makeModuleUnloadable(module, exports = undefined) {
+function makeModuleUnloadable(module, exports) {
   let m = module
   try {
     m = getModule(module)
-    if (m === undefined) {
+    if (!m) {
       return m
     }
 
     m.loaded = true
+    m.unloadable = true
 
     if (exports === undefined) {
       exports = m.exports
@@ -162,6 +210,76 @@ function makeModuleUnloadable(module, exports = undefined) {
     return module
   }
   return m
+}
+
+/**
+ * Unloads a module.
+ *
+ * @param {string | NodeJS.module} module The module to unload
+ * @returns {boolean} True if the module was unloaded, false if not
+ */
+function unloadModule(module) {
+  try {
+    if (!module) {
+      return false
+    }
+
+    const cache = require.cache
+    if (!cache) {
+      return false
+    }
+
+    module = getAppRootPath.getModule(module, false)
+    if (typeof module !== 'object' || module === null) {
+      return false
+    }
+
+    if (module.unloadable) {
+      return false
+    }
+
+    const filename = module.filename
+    if (typeof filename !== 'string' || filename.length === 0) {
+      return false
+    }
+
+    if (filename.endsWith('.node')) {
+      return false
+    }
+
+    const descriptor = Object.getOwnPropertyDescriptor(cache, filename)
+    if (descriptor && (!descriptor.enumerable || !descriptor.value)) {
+      return false
+    }
+
+    if (cache[filename] !== module) {
+      return false
+    }
+
+    return delete cache[filename]
+  } catch (error) {
+    return false
+  }
+}
+
+/**
+ * Unload all NodeJS modules (except the unloadable modules)
+ *
+ * @returns {number} The total number of unloaded modules
+ */
+function unloadAllModules() {
+  let result = 0
+  const cache = require.cache
+  if (cache) {
+    const keys = Object.keys(cache)
+    const keysLen = keys.length
+    for (let i = 0; i < keysLen; ++i) {
+      if (getAppRootPath.unloadModule(keys[i])) {
+        ++result
+      }
+    }
+  }
+  return result
 }
 
 /**
@@ -188,15 +306,23 @@ getAppRootPath.path = ''
 getAppRootPath.makeModuleUnloadable = makeModuleUnloadable
 getAppRootPath.shortenPath = shortenPath
 getAppRootPath.getModule = getModule
+getAppRootPath.unloadModule = unloadModule
+getAppRootPath.unloadAllModules = unloadAllModules
+getAppRootPath.getAppRootPath = getAppRootPath
+getAppRootPath.setAppRootPath = setAppRootPath
 
 Object.defineProperties(getAppRootPath, {
   path: { get: getAppRootPath, set: setAppRootPath, configurable: true, enumerable: true },
   toJSON: { value: getAppRootPath, enumerable: false, writable: true, configurable: true },
   valueOf: { value: getAppRootPath, enumerable: false, writable: true, configurable: true },
   toString: { value: getAppRootPath, enumerable: false, writable: true, configurable: true },
+  getAppRootPath: { value: getAppRootPath, enumerable: false, writable: true, configurable: true },
+  setAppRootPath: { value: setAppRootPath, enumerable: false, writable: true, configurable: true },
   makeModuleUnloadable: { value: makeModuleUnloadable, enumerable: false, writable: true, configurable: true },
   shortenPath: { value: shortenPath, enumerable: false, writable: true, configurable: true },
-  getModule: { value: getModule, enumerable: false, writable: true, configurable: true }
+  getModule: { value: getModule, enumerable: false, writable: true, configurable: true },
+  unloadModule: { value: unloadModule, enumerable: false, writable: true, configurable: true },
+  unloadAllModules: { value: unloadAllModules, enumerable: false, writable: true, configurable: true }
 })
 
 module.exports = getAppRootPath
