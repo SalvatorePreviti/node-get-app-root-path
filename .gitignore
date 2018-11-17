@@ -1,7 +1,8 @@
 # build output
 
 out/
-dist/
+dist/**/*.js
+dist/**/*.ts
 build/
 *.tgz
 *.zip

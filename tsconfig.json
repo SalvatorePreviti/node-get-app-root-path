@@ -1,31 +1,36 @@
 {
   "compilerOptions": {
-    "checkJs": true,
-    "allowJs": true,
-    "noEmit": true,
-    "declaration": false,
+    "declaration": true,
     "declarationMap": false,
     "experimentalDecorators": false,
     "forceConsistentCasingInFileNames": true,
     "importHelpers": true,
     "lib": ["esnext"],
     "module": "commonjs",
-    "moduleResolution": "node",
     "newLine": "LF",
+    "noEmit": false,
     "noEmitHelpers": true,
+    "moduleResolution": "node",
     "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "outDir": "dist",
+    "baseUrl": "./",
+    "paths": {
+      "get-app-root-path": ["./src"],
+      "get-app-root-path/*": ["./src/*"]
+    },
     "resolveJsonModule": true,
     "skipDefaultLibCheck": true,
+    "skipLibCheck": true,
     "strict": true,
-    "noImplicitAny": true,
     "suppressImplicitAnyIndexErrors": true,
     "target": "esnext"
   },
+  "include": ["./src"],
   "typeAcquisition": {
     "enable": true
-  },
-  "exclude": ["**/node_modules", "**/.*"]
+  }
 }

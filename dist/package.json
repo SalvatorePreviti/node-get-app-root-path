@@ -1,0 +1,28 @@
+{
+  "name": "get-app-root-path",
+  "version": "0.1.0",
+  "description": "Get the root folder of the running node application",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "doc": "documentation readme index.js --section=API"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SalvatorePreviti/node-get-app-root-path.git"
+  },
+  "keywords": [
+    "node",
+    "root",
+    "path"
+  ],
+  "author": "Salvatore Previti",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SalvatorePreviti/node-get-app-root-path/issues"
+  },
+  "engines": {
+    "node": ">=8.10.0"
+  },
+  "homepage": "https://github.com/SalvatorePreviti/node-get-app-root-path#readme"
+}
