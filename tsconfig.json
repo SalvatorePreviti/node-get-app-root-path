@@ -16,6 +16,7 @@
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "strictPropertyInitialization": true,
     "outDir": "dist",
     "baseUrl": "./",
     "paths": {
@@ -26,6 +27,7 @@
     "skipDefaultLibCheck": true,
     "skipLibCheck": true,
     "strict": true,
+    "strictNullChecks": true,
     "suppressImplicitAnyIndexErrors": true,
     "target": "esnext"
   },

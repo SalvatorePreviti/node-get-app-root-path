@@ -1,7 +1,8 @@
 {
   "extends": ["tslint-config-quick"],
   "rules": {
+    "no-implicit-dependencies": [true, ["get-app-root-path"]],
     "non-literal-require": false,
-    "no-implicit-dependencies": [true, ["get-app-root-path"]]
+    "class-name": false
   }
 }
