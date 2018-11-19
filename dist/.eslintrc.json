@@ -1,7 +1,3 @@
 {
-  "extends": ["eslint-config-quick/node/dist"],
-  "rules": {
-    "global-require": 0,
-    "no-func-assign": 0
-  }
+  "extends": ["eslint-config-quick/node/dist"]
 }

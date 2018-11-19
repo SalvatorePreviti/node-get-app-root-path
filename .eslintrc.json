@@ -1,6 +1,3 @@
 {
-  "extends": ["eslint-config-quick"],
-  "rules": {
-    "global-require": 0
-  }
+  "extends": ["eslint-config-quick"]
 }

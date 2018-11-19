@@ -3,6 +3,7 @@
   "rules": {
     "no-implicit-dependencies": [true, ["get-app-root-path"]],
     "non-literal-require": false,
-    "class-name": false
+    "class-name": false,
+    "no-console": false
   }
 }

@@ -1,13 +1,51 @@
+import util = require('util')
 import path = require('path')
 import fs = require('fs')
 import os = require('os')
 import cjs = require('module')
 
+function bool(value: any): boolean | undefined {
+  switch (value) {
+    case true:
+    case 'true':
+    case 'True':
+    case 'TRUE':
+    case '1':
+      return true
+    case false:
+    case 'false':
+    case 'False':
+    case 'FALSE':
+    case '0':
+      return false
+  }
+  return undefined
+}
+
+function dirpath(s: any): string {
+  if (typeof s === 'string' && s.length) {
+    try {
+      s = path.resolve(s)
+      return fs.existsSync(s) ? s : ''
+    } catch (_error) {}
+  }
+  return ''
+}
+
 const env = process.env
 const initialCwd = path.resolve(process.cwd())
 const lambdaTaskRoot = dirpath(path.sep === '/' && env.AWS_EXECUTION_ENV && env.AWS_LAMBDA_FUNCTION_NAME && env.LAMBDA_TASK_ROOT)
 const isLambda = !!lambdaTaskRoot
-let isLocal = isLambda ? false : undefined
+
+let isTesting: boolean | undefined
+let isLocal: boolean | undefined
+let isGitRepo: boolean | undefined
+let appName: string | undefined
+
+if (isLambda) {
+  isLocal = bool(process.env.IS_OFFLINE)
+}
+
 let root: string | undefined
 let manifest: getAppRootPath.IPackageManifest
 
@@ -16,26 +54,155 @@ let init: () => void
 const getAppRootPath = function getAppRootPath(): string {
   init()
   return root!
-} as getAppRootPath.getAppRootPath
+} as getAppRootPath.AppRootPath
 
 namespace getAppRootPath {
-  export interface getAppRootPath {
+  /**
+   *
+   *
+   * @export
+   * @interface AppRootPath
+   */
+  export interface AppRootPath {
+    /**
+     * Gets the application root path or thr workspace root path.
+     * @returns {string} The application root path.
+     */
+
     (): string
 
+    /**
+     * True if the application is running as a lambda function
+     * @type {boolean}
+     */
     readonly isLambda: boolean
+
+    /**
+     * True if the root application folder is a git repository (has .git and .gitignore)
+     * @type {boolean}
+     */
+    readonly isGitRepo: boolean
+
+    /**
+     * The root package.json manifest.
+     * @type {IPackageManifest}
+     */
     readonly manifest: IPackageManifest
+
+    /**
+     * The initial process.env
+     * @type {NodeJS.ProcessEnv}
+     */
     readonly env: NodeJS.ProcessEnv
+
+    /**
+     * The initial directory when the application was started.
+     * @type {string}
+     */
     readonly initialCwd: string
+
+    /**
+     * True if running in a local environment.
+     * @type {boolean}
+     */
     isLocal: boolean
+
+    /**
+     * True if a unit test framework (jest, mocha) was detected.
+     * @type {boolean}
+     */
+    isTesting: boolean
+
+    /**
+     * Gets or sets the application root path
+     * @type {string}
+     */
     path: string
 
-    getAppRootPath(): string
-    setAppRootPath(value: string): void
+    /**
+     * Gets or sets the application name
+     * @type {string}
+     */
+    name: string
 
-    parseBool(value: any): boolean | undefined
+    /**
+     * Returns true if running in a local environment.
+     * @returns {boolean} True if running in a local environment.
+     */
+    getIsLocal(): boolean
+
+    /**
+     * Sets isLocal value (running inside a local environment).
+     * @param {(string | boolean)} value The boolean value.
+     */
+    setIsLocal(value: string | boolean): void
+
+    /**
+     * Returns true if running in a unit testing framework.
+     * @returns {boolean} True if running in a unit testing framework.
+     */
+    getIsTesting(): boolean
+
+    /**
+     * Sets isTesting value (running inside a unit test framework).
+     * @param {(string | boolean)} value The boolean value.
+     */
+    setIsTesting(value: string | boolean): void
+
+    /**
+     * Gets the application or workspace root folder path.
+     * @returns {string} The application or workspace root folder path.
+     */
+    getPath(): string
+
+    /**
+     * Sets the application or workspace root folder path.
+     * @param {string} value The new root folder path.
+     */
+    setPath(value: string): void
+
+    /**
+     * Shortens a path making it relative to the specified rootDir.
+     * By default, rootDir is the application or workspace root path.
+     *
+     * @param {string} p The path to shorten.
+     * @param {string} [rootDir] The root dir, by default is getAppRootPath()
+     * @returns {string} The shortened path. May be relative or absolute.
+     */
+    shortenPath(p: string, rootDir?: string): string
+
+    /**
+     * Marks a NodeJS module as a core module that should not be unloaded.
+     *
+     * @template Module NodeJS module
+     * @param {Module} module NodeJS module
+     * @returns {Module} NodeJS module
+     */
+    coreModule<Module extends NodeModule>(module: Module): Module
+
+    /**
+     * Marks a NodeJS module as an executable module.
+     * If the module is executed with 'node module.js', the module will be called straight away.
+     * When executing it handles promises and sets process exit status code -1 on failure.
+     *
+     * @template Module NodeJS module
+     * @param {Module} module NodeJS module
+     * @param {()=>any} [functor] The function to execute. If undefined, module.exports is used.
+     * @returns {Module} NodeJS module
+     */
+    executableModule<Module extends NodeModule>(module: Module, functor: () => never | void | Promise<any>): Module
   }
 
+  /**
+   * The definition of a NodeJS package.json manifest
+   * @export
+   * @interface IPackageManifest
+   */
   export interface IPackageManifest {
+    /**
+     * Package name. Required.
+     * @type {string}
+     */
     name: string
     version?: string
     description?: string
@@ -68,32 +235,57 @@ namespace getAppRootPath {
   }
 }
 
-function setAppRootPath(value: string): void {
+function shortenPath(filepath: string, rootDir: string = getAppRootPath()): string {
+  filepath = path.normalize(filepath)
+  if (path.isAbsolute(filepath)) {
+    const p = path.normalize(path.relative(rootDir, filepath))
+    if (p.length < filepath.length) {
+      filepath = p
+    }
+  }
+  return filepath
+}
+
+function setPath(value: string): void {
   root = path.resolve(value)
   env.APP_ROOT_PATH = root
 }
 
-function dirpath(s: any): string {
-  if (typeof s === 'string' && s.length) {
-    try {
-      s = path.resolve(s)
-      return fs.existsSync(s) ? s : ''
-    } catch (_error) {}
-  }
-  return ''
+function getIsLocal(): boolean {
+  init()
+  return isLocal!
 }
 
 function setIsLocal(value: string | boolean): void {
-  const v = bool(value)
-  if (v === undefined) {
-    throw new TypeError(`isLocal must be a valid boolean value but is "${value}"`)
-  }
-  isLocal = v
-  if (v) {
+  isLocal = bool(value) || !!value
+  if (isLocal) {
     env.isLocal = 'true'
   } else {
     delete env.isLocal
   }
+}
+
+function getIsTesting(): boolean {
+  if (isTesting === undefined) {
+    const g = global as any
+    if (
+      typeof g.it === 'function' &&
+      typeof g.describe === 'function' &&
+      typeof g.afterEach === 'function' &&
+      typeof g.beforeEach === 'function' &&
+      ((typeof g.before === 'function' && typeof g.after === 'function') ||
+        (typeof g.beforeAll === 'function' && typeof g.afterAll === 'function'))
+    ) {
+      isTesting = true
+      return true
+    }
+    return false
+  }
+  return isTesting
+}
+
+function setIsTesting(value: string | boolean): void {
+  isTesting = bool(value) || !!value
 }
 
 function isGlobalDirectory(dir: any): boolean {
@@ -112,24 +304,43 @@ function isGlobalDirectory(dir: any): boolean {
   return false
 }
 
+function isGit(p: string): boolean {
+  try {
+    return fs.statSync(path.join(p, '.git')).isDirectory() && fs.statSync(path.join(p, '.gitignore')).isFile()
+  } catch (_e) {
+    return false
+  }
+}
+
+function readManifest(p: string): any {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(p, 'package.json')).toString())
+    if (typeof m === 'object' && m !== null && typeof m.name === 'string') {
+      return m
+    }
+  } catch (_e) {}
+  return null
+}
+
 init = function(): void {
-  init = () => {}
+  console.log('INIT!', env.APP_ROOT_PATH)
+  init = doNothing
 
   if (isLocal === undefined) {
-    isLocal = bool(env.isLocal || env.npm_config_isLocal)
-    if (isLocal === undefined && env.NODE_ENV === 'development') {
-      isLocal = true
+    isLocal = bool(env.isLocal)
+    if (isLocal === undefined) {
+      isLocal = bool(env.npm_config_isLocal)
+      if (isLocal === undefined && (env.NODE_ENV === 'development' || isTesting || (env.VSCODE_PID && env.VSCODE_IPC_HOOK))) {
+        isLocal = true
+      }
     }
   }
 
-  root = dirpath(env.APP_ROOT_PATH)
+  root = dirpath(root) || dirpath(env.APP_ROOT_PATH)
 
   if (!root) {
     if (env.VSCODE_PID && env.VSCODE_IPC_HOOK) {
       root = initialCwd
-      if (isLocal === undefined) {
-        isLocal = true
-      }
     } else {
       root = path.resolve(__dirname || '')
       const m = require.main
@@ -154,91 +365,190 @@ init = function(): void {
     if (root.endsWith(nm)) {
       root = root.slice(0, root.length - nm.length) || root
     }
-  }
 
-  let home: string | undefined
-  for (let current = root; current; ) {
-    try {
-      const p = path.join(current, 'package.json')
-      if (fs.statSync(p).isFile()) {
-        manifest = require(p)
-        if (typeof manifest === 'object' && manifest.name) {
-          root = current
-          const mr = manifest.root
-          if (mr || (mr !== false && fs.lstatSync(path.join(current, '.git')).isDirectory())) {
+    let home: string | undefined
+    for (let current = root; current; ) {
+      const m = readManifest(current)
+      if (m) {
+        manifest = m
+        root = current
+        const ir = bool(m.root)
+        if (ir !== false) {
+          if (ir === true) {
+            break
+          }
+          isGitRepo = isGit(root)
+          if (isGitRepo) {
             break
           }
         }
       }
-    } catch (_e) {}
-    const parent = path.dirname(current)
-    if (!parent || parent === current || isLambda) {
-      break
+      const parent = path.dirname(current)
+      if (!parent || parent === current || isLambda) {
+        break
+      }
+      if (home === undefined) {
+        home = os.homedir() || ''
+      }
+      if (parent === home || parent === '/') {
+        break
+      }
+      current = parent
     }
-    if (home === undefined) {
-      home = os.homedir() || ''
-    }
-    if (current === home) {
-      break
-    }
-    current = parent
   }
 
   if (manifest === undefined) {
-    manifest = { name: path.dirname(root), private: true }
-  } else if (isLocal === undefined) {
+    manifest = readManifest(root)
+  }
+
+  if (isGitRepo === undefined) {
+    isGitRepo = isGit(root)
+  }
+
+  if (!manifest) {
+    manifest = { name: path.basename(root), private: true }
+  }
+
+  appName = manifest.name
+
+  if (isLocal === undefined) {
     isLocal = bool(manifest.isLocal)
     if (isLocal === undefined) {
       const config = manifest.config
       if (config) {
         isLocal = bool(config.isLocal)
       }
+      if (isLocal === undefined) {
+        isLocal = isGitRepo
+      }
     }
   }
 
+  env.APP_ROOT_PATH = root
   setIsLocal(isLocal!)
-  setAppRootPath(root)
 }
 
-function bool(value: any): boolean | undefined {
-  switch (value) {
-    case true:
-    case 'true':
-    case 'True':
-    case 'TRUE':
-    case '1':
-      return true
-    case false:
-    case 'false':
-    case 'False':
-    case 'FALSE':
-    case '0':
-      return false
+function coreModule(module: any): any {
+  module.unloadable = true
+  if (isLambda && !isLocal) {
+    return module
   }
-  return undefined
+  const key = module.filename
+  if (typeof key === 'string' && key.length) {
+    Object.defineProperty(require.cache, key, {
+      get() {
+        return module
+      },
+      set: doNothing,
+      configurable: true,
+      enumerable: false
+    })
+  }
+  return module
+}
+
+async function executeExecutableModule(module: any, functor: () => any): Promise<any> {
+  module.executable = true
+  const f = functor || module.exports
+  let name
+  const fname = module.filename
+  if (typeof fname === 'string' && fname.length) {
+    name = path.basename(fname, '.js')
+    if (name === 'index') {
+      name = path.dirname(fname)
+    }
+  }
+  if (!name) {
+    name = 'module'
+  }
+  if (!f.name) {
+    try {
+      Object.defineProperty(f, 'name', { value: name, configurable: true, writable: true })
+    } catch (_e) {}
+  }
+  const n = `- running ${name}`
+  console.info(n)
+  console.time(n)
+  try {
+    await new Promise(setImmediate)
+    await functor()
+  } catch (error) {
+    if (!process.exitCode) {
+      process.exitCode = -1
+    }
+    console.error('Error ', n, error)
+  } finally {
+    console.timeEnd(n)
+  }
+}
+
+function executableModule(module: any, functor?: (...args: string[]) => any): any {
+  if (typeof functor !== 'function') {
+    if (functor !== undefined) {
+      throw new TypeError(`Argument "functor" must be a function but is ${typeof functor}`)
+    }
+    functor = module.exports
+    if (typeof functor !== 'function') {
+      throw new TypeError(`module.exports must be a function but is ${typeof functor}`)
+    }
+  }
+  if (require.main === module) {
+    executeExecutableModule(module, functor)
+  }
+  return module
+}
+
+function getInfo() {
+  const result = {}
+  for (const k of Object.keys(getAppRootPath)) {
+    const v = getAppRootPath[k]
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      result[k] = v
+    }
+  }
+  return result
 }
 
 Object.defineProperties(getAppRootPath, {
-  getAppRootPath: { value: getAppRootPath },
-  setAppRootPath: { value: setAppRootPath, writable: true },
+  default: { value: getAppRootPath, writable: true, configurable: true },
+  coreModule: { value: coreModule, writable: true, configurable: true },
+  executableModule: { value: executableModule, writable: true, configurable: true },
+  getPath: { value: getAppRootPath },
+  setPath: { value: setPath, writable: true },
+  shortenPath: { value: shortenPath },
+  getIsLocal: { value: getIsLocal },
   setIsLocal: { value: setIsLocal },
+  getIsTesting: { value: getIsTesting },
+  setIsTesting: { value: setIsTesting },
   initialCwd: { value: initialCwd },
   env: { value: env },
   isLambda: { value: isLambda, enumerable: true },
-  path: {
-    get: getAppRootPath,
-    set(value) {
-      getAppRootPath.setAppRootPath(value)
+  isLocal: { get: getIsLocal, set: setIsLocal, enumerable: true },
+  isTesting: { get: getIsTesting, set: setIsTesting, enumerable: true },
+  isGitRepo: {
+    get() {
+      init()
+      return isGitRepo
     },
     enumerable: true
   },
-  isLocal: {
+  path: {
+    get: getAppRootPath,
+    set(value) {
+      getAppRootPath.setPath(value)
+    },
+    enumerable: true
+  },
+  name: {
     get() {
       init()
-      return isLocal
+      return appName
     },
-    set: setIsLocal,
-    enumerable: true
+    set(value) {
+      appName = value !== null && value !== undefined ? `${value}` : ''
+    },
+    enumerable: true,
+    configurable: true
   },
   manifest: {
     get() {
@@ -246,9 +556,23 @@ Object.defineProperties(getAppRootPath, {
       return manifest
     },
     enumerable: false
-  }
+  },
+  toJSON: {
+    value: getInfo,
+    writable: true,
+    configurable: true
+  },
+  toString: { value: getAppRootPath, writable: true, configurable: true }
 })
+
+Object.defineProperty(getAppRootPath, util.inspect.custom, {
+  value: getInfo,
+  writable: true,
+  configurable: true
+})
+
+function doNothing() {}
 
 export = getAppRootPath
 
-console.log(Object.keys(getAppRootPath))
+coreModule(module)
