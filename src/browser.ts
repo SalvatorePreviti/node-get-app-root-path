@@ -94,6 +94,7 @@ Object.defineProperties(_getPath, {
   default: { value: _getPath, writable: true, configurable: true },
   coreModule: { value: moduleFunc, writable: true, configurable: true },
   executableModule: { value: moduleFunc, writable: true, configurable: true },
+  shared: { value: {}, enumerable: false, configurable: false, writable: false },
   getAppRootPath: { value: _getPath },
   setPath: { value: setPath, writable: true },
   shortenPath: { value: shortenPath },

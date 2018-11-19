@@ -41,4 +41,8 @@ describe('getAppRootPath', () => {
   it('returns the root path with toString', () => {
     expect(getAppRootPath.toString()).toEqual(path.resolve(path.join(__dirname, '..')))
   })
+
+  it('has a shared object', () => {
+    expect(typeof getAppRootPath.shared === 'object' && getAppRootPath.shared !== null)
+  })
 })
