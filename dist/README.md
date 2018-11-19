@@ -31,6 +31,7 @@ interface AppRootPath {
   readonly env: ProcessEnv
   readonly initialCwd: string
   path: string
+  name: string
   getIsLocal(): boolean
   setIsLocal(value: string | boolean): void
   getIsTesting(): boolean
@@ -189,6 +190,7 @@ Module
 | env        | ProcessEnv                                 | false    | The initial process.env                                                           |
 | initialCwd | string                                     | false    | The initial directory when the application was started.                           |
 | path       | string                                     | false    | Gets or sets the application root path                                            |
+| name       | string                                     | false    | The application name as defined in the root package.json                          |
 
 ---
 
