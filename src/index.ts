@@ -195,9 +195,9 @@ namespace getAppRootPath {
 
 function setup() {
   const uniqueSym = Symbol.for('#get-app-root-path')
-  const tCached = require.cache[uniqueSym]
-  if (typeof tCached === 'function') {
-    return tCached
+  let sr: getAppRootPath.AppRootPath = require.cache[uniqueSym]
+  if (typeof sr === 'function') {
+    return sr
   }
 
   function bool(value: any): boolean | undefined {
@@ -247,7 +247,7 @@ function setup() {
 
   let init: () => void
 
-  const sr = function getAppRootPath(): string {
+  sr = function getAppRootPath(): string {
     init()
     return root!
   } as getAppRootPath.AppRootPath
@@ -590,7 +590,8 @@ function setup() {
 
   function doNothing() {}
 
-  require.cache[uniqueSym] = sr
+  Object.defineProperty(require.cache, uniqueSym, { value: sr, configurable: true, writable: true })
+
   return sr
 }
 
