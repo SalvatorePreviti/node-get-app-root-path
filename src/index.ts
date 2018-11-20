@@ -8,14 +8,14 @@ const getAppRootPath: getAppRootPath.AppRootPath = setup()
 
 namespace getAppRootPath {
   export interface IModule {
-    exports: any
-    id: string
-    filename: string
-    loaded: boolean
-    parent: IModule | null
-    children: IModule[]
-    paths: string[]
-    require?: NodeRequireFunction | undefined
+    exports?: any
+    id?: string
+    filename?: string
+    loaded?: boolean
+    parent?: IModule | null
+    children?: IModule[]
+    paths?: string[]
+    require?: NodeRequireFunction
   }
 
   export interface AppRootPath {
