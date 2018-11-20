@@ -7,8 +7,8 @@ import cjs = require('module')
 const getAppRootPath: getAppRootPath.AppRootPath = setup()
 
 namespace getAppRootPath {
-  export interface IModule {
-    exports?: any
+  export interface IModule<TExports = any> {
+    exports?: TExports
     id?: string
     filename?: string
     loaded?: boolean
@@ -137,11 +137,15 @@ namespace getAppRootPath {
     /**
      * Marks a NodeJS module as a core module that should not be unloaded.
      *
-     * @template Module NodeJS module
-     * @param {Module} module NodeJS module
-     * @returns {Module} NodeJS module
+     * @template TModule NodeJS module
+     * @param {TModule} module NodeJS module
+     * @returns {TModule} NodeJS module
      */
+    coreModule<TModule extends NodeModule>(module: TModule): TModule
+    coreModule<TExports, TModule = IModule<TExports>>(module: TModule): TModule
     coreModule<TModule extends IModule>(module: TModule): TModule
+    coreModule<TModule>(module: TModule): TModule
+    coreModule(module: any): any
 
     /**
      * Marks a NodeJS module as an executable module.
@@ -153,7 +157,11 @@ namespace getAppRootPath {
      * @param {()=>any} [functor] The function to execute. If undefined, module.exports is used.
      * @returns {Module} NodeJS module
      */
-    executableModule<TModule extends IModule>(module: TModule, functor: () => never | void | Promise<any>): TModule
+    executableModule<TModule extends NodeModule>(module: TModule, functor?: () => never | void | Promise<any>): TModule
+    executableModule<TExports, TModule = IModule<TExports>>(module: TModule, functor?: () => never | void | Promise<any>): TModule
+    executableModule<TModule extends IModule>(module: TModule, functor?: () => never | void | Promise<any>): TModule
+    executableModule<TModule>(module: TModule, functor?: () => never | void | Promise<any>): TModule
+    executableModule(module: any, functor?: () => never | void | Promise<any>): any
   }
 
   /**
