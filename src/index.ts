@@ -7,12 +7,17 @@ import cjs = require('module')
 const getAppRootPath: getAppRootPath.AppRootPath = setup()
 
 namespace getAppRootPath {
-  /**
-   *
-   *
-   * @export
-   * @interface AppRootPath
-   */
+  export interface IModule {
+    exports: any
+    id: string
+    filename: string
+    loaded: boolean
+    parent: IModule | null
+    children: IModule[]
+    paths: string[]
+    require?: NodeRequireFunction | undefined
+  }
+
   export interface AppRootPath {
     /**
      * Gets the application root path or thr workspace root path.
@@ -136,7 +141,7 @@ namespace getAppRootPath {
      * @param {Module} module NodeJS module
      * @returns {Module} NodeJS module
      */
-    coreModule<Module extends NodeModule>(module: Module): Module
+    coreModule<TModule extends IModule>(module: TModule): TModule
 
     /**
      * Marks a NodeJS module as an executable module.
@@ -148,7 +153,7 @@ namespace getAppRootPath {
      * @param {()=>any} [functor] The function to execute. If undefined, module.exports is used.
      * @returns {Module} NodeJS module
      */
-    executableModule<Module extends NodeModule>(module: Module, functor: () => never | void | Promise<any>): Module
+    executableModule<TModule extends IModule>(module: TModule, functor: () => never | void | Promise<any>): TModule
   }
 
   /**
