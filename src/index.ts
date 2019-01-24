@@ -739,18 +739,20 @@ function setup() {
   }
 
   function setTerminalColorSupport(value: any) {
-    if (value === true) {
-      terminalColorSupport = 1
-    } else if (value === false) {
-      terminalColorSupport = 0
-    } else {
-      value = Number.parseInt(value, 10)
-    }
-    if (value < 0) {
-      value = 0
-    }
-    if (value > 3) {
-      value = 3
+    if (value !== undefined) {
+      if (value === true) {
+        terminalColorSupport = 1
+      } else if (value === false) {
+        terminalColorSupport = 0
+      } else {
+        value = Number.parseInt(value, 10)
+      }
+      if (value < 0) {
+        value = 0
+      }
+      if (value > 3) {
+        value = 3
+      }
     }
     terminalColorSupport = value
   }
