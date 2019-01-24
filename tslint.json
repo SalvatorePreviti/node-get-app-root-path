@@ -1,9 +1,16 @@
 {
-  "extends": ["tslint-config-quick"],
+  "extends": ["tslint:recommended", "tslint-config-prettier"],
   "rules": {
     "no-implicit-dependencies": [true, ["get-app-root-path"]],
     "non-literal-require": false,
     "class-name": false,
-    "no-console": false
+    "no-console": false,
+    "object-literal-sort-keys": false,
+    "ordered-imports": false,
+    "no-namespace": false,
+    "interface-name": false,
+    "no-empty": false,
+    "only-arrow-functions": false,
+    "variable-name": false
   }
 }

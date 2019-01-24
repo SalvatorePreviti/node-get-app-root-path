@@ -87,12 +87,41 @@ function setIsTesting(value: string | boolean): void {
 }
 
 function moduleFunc(module: any): any {
+  if (typeof module === 'string') {
+    return require(module)
+  }
   return module
+}
+
+let hasFlagCache: any
+
+function hasArgvFlag(flag: string) {
+  const found = hasFlagCache && hasFlagCache[flag]
+  if (found !== undefined) {
+    return found
+  }
+  const prefix = flag.startsWith('-') ? '' : flag.length === 1 ? '-' : '--'
+  const argv = process.argv
+  let result = false
+  if (argv && typeof argv.indexOf === 'function') {
+    const pos = argv.indexOf(prefix + flag)
+    const terminatorPos = argv.indexOf('--')
+    result = pos !== -1 && (terminatorPos === -1 ? true : pos < terminatorPos)
+    if (hasFlagCache === undefined) {
+      hasFlagCache = Object.create(null)
+    }
+    hasFlagCache[flag] = result
+  }
+  return result
 }
 
 Object.defineProperties(_getPath, {
   default: { value: _getPath, writable: true, configurable: true },
+  globalCache: { value: Object.create(null) },
   coreModule: { value: moduleFunc, writable: true, configurable: true },
+  requireModule: { value: require, writable: true, configurable: true },
+  getModuleFromRequireCache: { value: moduleFunc, writable: true, configurable: true },
+  singletonModule: { value: moduleFunc, writable: true, configurable: true },
   executableModule: { value: moduleFunc, writable: true, configurable: true },
   shared: { value: {}, enumerable: false, configurable: false, writable: false },
   getAppRootPath: { value: _getPath },
@@ -111,6 +140,8 @@ Object.defineProperties(_getPath, {
   isTesting: { get: getIsTesting, set: setIsTesting, enumerable: true },
   manifest: { value: manifest, enumerable: false },
   toString: { value: _getPath, writable: true, configurable: true },
+  terminalColorSupport: { value: 0, configurable: true, writable: true },
+  hasArgvFlag: { value: hasArgvFlag, writable: true, configurable: true },
   toJSON: {
     value() {
       return { ..._getPath }
@@ -122,7 +153,9 @@ Object.defineProperties(_getPath, {
 
 export const getPath = _getPath as AppRootPath
 export namespace getAppRootPath {
+  // tslint:disable-next-line:no-shadowed-variable
   export type AppRootPath = AppRootPathType
+  // tslint:disable-next-line:no-shadowed-variable
   export type IPackageManifest = IPackageManifestType
 }
 

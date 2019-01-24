@@ -1,6 +1,6 @@
 {
   "name": "get-app-root-path",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "Get the root folder of the running node application",
   "main": "index.js",
   "browser": {
@@ -20,7 +20,7 @@
     "path"
   ],
   "author": "Salvatore Previti",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/SalvatorePreviti/node-get-app-root-path/issues"
   },

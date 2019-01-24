@@ -23,8 +23,10 @@ namespace getAppRootPath {
      * Gets the application root path or thr workspace root path.
      * @returns {string} The application root path.
      */
-
     (): string
+
+    /** A global cache shared between all modules */
+    readonly globalCache: { [key: string]: any }
 
     /**
      * True if the application is running as a lambda function
@@ -57,6 +59,12 @@ namespace getAppRootPath {
     readonly initialCwd: string
 
     /**
+     * The terminal supported colors.
+     * 0: no color. 1: 16 colors. 2: 256 colors. 3: 16 million colors.
+     */
+    terminalColorSupport: 0 | 1 | 2 | 3
+
+    /**
      * True if running in a local environment.
      * @type {boolean}
      */
@@ -75,10 +83,10 @@ namespace getAppRootPath {
     path: string
 
     /**
-     * Gets or sets the application name
+     * Gets or sets the root package name
      * @type {string}
      */
-    name: string
+    applicationName: string
 
     /**
      * A map of shared values between modules.
@@ -135,6 +143,23 @@ namespace getAppRootPath {
     shortenPath(p: string, rootDir?: string): string
 
     /**
+     * Requires a module and returns the module itself instead of the exports.
+     *
+     * @param {string} id The id or the path of the module to require.
+     * @param {(...args: any) => any} [caller]
+     * @returns {NodeModule} The resolved module.
+     */
+    requireModule(id: string, caller?: (...args: any) => any): NodeModule
+
+    /**
+     * Gets a module from the cache. Returns undefined if not found.
+     *
+     * @param {string} id The id of the module to resolve.
+     * @returns {NodeModule|undefined} The module found in the cache or undefined if not found.
+     */
+    getModuleFromRequireCache(id: string): NodeModule | undefined
+
+    /**
      * Marks a NodeJS module as a core module that should not be unloaded.
      *
      * @template TModule NodeJS module
@@ -145,7 +170,26 @@ namespace getAppRootPath {
     coreModule<TExports, TModule = IModule<TExports>>(module: TModule): TModule
     coreModule<TModule extends IModule>(module: TModule): TModule
     coreModule<TModule>(module: TModule): TModule
+    coreModule(module: string): NodeModule
     coreModule(module: any): any
+
+    /**
+     * Marks a NodeJS module as a singleton module that should not be unloaded.
+     *
+     * @template TModule NodeJS module
+     * @param {TModule} module NodeJS module
+     * @returns {TModule} NodeJS module
+     */
+    singletonModule<TModule extends NodeModule>(module: TModule, activator?: (module: TModule) => void, version?: number): TModule
+    singletonModule<TExports, TModule = IModule<TExports>>(
+      module: TModule,
+      activator?: (module: TModule) => void,
+      version?: number
+    ): TModule
+    singletonModule<TModule extends IModule>(module: TModule, activator?: (module: TModule) => void, version?: number): TModule
+    singletonModule<TModule>(module: TModule, activator?: (module: TModule) => void, version?: number): TModule
+    singletonModule(module: string, activator?: (module: NodeModule) => void, version?: number): NodeModule
+    singletonModule(module: any): any
 
     /**
      * Marks a NodeJS module as an executable module.
@@ -161,7 +205,17 @@ namespace getAppRootPath {
     executableModule<TExports, TModule = IModule<TExports>>(module: TModule, functor?: () => never | void | Promise<any>): TModule
     executableModule<TModule extends IModule>(module: TModule, functor?: () => never | void | Promise<any>): TModule
     executableModule<TModule>(module: TModule, functor?: () => never | void | Promise<any>): TModule
+    executableModule(module: string, functor?: () => never | void | Promise<any>): NodeModule
     executableModule(module: any, functor?: () => never | void | Promise<any>): any
+
+    /**
+     * Returns true if the given flag is specified in the command line argument list
+     * The value is cached once requested.
+     *
+     * @param {string} flag The flag to look for.
+     * @returns {boolean} True if the flag was specified in the process argv, false if not
+     */
+    hasArgvFlag(flag: string): boolean
   }
 
   /**
@@ -182,7 +236,7 @@ namespace getAppRootPath {
     bugs?: string | { email: string; url: string; [key: string]: string | undefined }
     license?: string
     author?: string | { name: string; email?: string; homepage?: string; [key: string]: string | undefined }
-    contributors?: string[] | { name: string; email?: string; homepage?: string; [key: string]: string | undefined }[]
+    contributors?: string[] | Array<{ name: string; email?: string; homepage?: string; [key: string]: string | undefined }>
     files?: string[]
     main?: string
     bin?: string | { [name: string]: string | undefined }
@@ -206,50 +260,108 @@ namespace getAppRootPath {
   }
 }
 
+function isGlobalDirectory(dir: any): boolean {
+  if (typeof dir === 'string') {
+    const globalPaths = (cjs as { globalPaths?: string[] }).globalPaths
+    if (globalPaths) {
+      for (let i = 0, len = globalPaths.length; i < len; ++i) {
+        if (dir.startsWith(globalPaths[i])) {
+          return true
+        }
+      }
+    }
+  }
+  return false
+}
+
+function isGit(p: string): boolean {
+  try {
+    return fs.statSync(path.join(p, '.git')).isDirectory() && fs.statSync(path.join(p, '.gitignore')).isFile()
+  } catch (error) {
+    return false
+  }
+}
+
+function readManifest(p: string): any {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(p, 'package.json')).toString())
+    if (typeof m === 'object' && m !== null && typeof m.name === 'string') {
+      return m
+    }
+  } catch (error) {}
+  return null
+}
+
+function dirpath(s: any): string {
+  if (typeof s === 'string' && s.length) {
+    try {
+      s = path.resolve(s)
+      return fs.existsSync(s) ? s : ''
+    } catch (error) {}
+  }
+  return ''
+}
+
+function bool(value: any): boolean | undefined {
+  switch (value) {
+    case true:
+    case 'true':
+    case 'True':
+    case 'TRUE':
+    case '1':
+      return true
+    case false:
+    case 'false':
+    case 'False':
+    case 'FALSE':
+    case '0':
+      return false
+  }
+  return undefined
+}
+
 function setup() {
-  const uniqueSym = Symbol.for('#get-app-root-path')
-  let sr: getAppRootPath.AppRootPath = require.cache[uniqueSym]
+  const uniqueSym = Symbol.for('⭐ get-app-root-path ⭐')
+  let sr: getAppRootPath.AppRootPath = global[uniqueSym]
   if (typeof sr === 'function') {
+    sr.coreModule(module)
     return sr
   }
 
-  function bool(value: any): boolean | undefined {
-    switch (value) {
-      case true:
-      case 'true':
-      case 'True':
-      case 'TRUE':
-      case '1':
-        return true
-      case false:
-      case 'false':
-      case 'False':
-      case 'FALSE':
-      case '0':
-        return false
-    }
-    return undefined
-  }
-
-  function dirpath(s: any): string {
-    if (typeof s === 'string' && s.length) {
-      try {
-        s = path.resolve(s)
-        return fs.existsSync(s) ? s : ''
-      } catch (_error) {}
-    }
-    return ''
-  }
+  const { defineProperty } = Reflect
 
   const env = process.env
   const initialCwd = path.resolve(process.cwd())
   const lambdaTaskRoot = dirpath(path.sep === '/' && env.AWS_EXECUTION_ENV && env.AWS_LAMBDA_FUNCTION_NAME && env.LAMBDA_TASK_ROOT)
   const isLambda = !!lambdaTaskRoot
+  let singletonModules: any
+  let hasFlagCache: any
+
+  function hasArgvFlag(flag: string) {
+    const found = hasFlagCache && hasFlagCache[flag]
+    if (found !== undefined) {
+      return found
+    }
+    let result = false
+    const argv = process.argv
+    if (argv && typeof argv.indexOf === 'function') {
+      const prefix = flag.startsWith('-') ? '' : flag.length === 1 ? '-' : '--'
+      const pos = argv.indexOf(prefix + flag)
+      const terminatorPos = argv.indexOf('--')
+      result = pos !== -1 && (terminatorPos === -1 ? true : pos < terminatorPos)
+      if (hasFlagCache === undefined) {
+        hasFlagCache = Object.create(null)
+      }
+      hasFlagCache[flag] = result
+    }
+    return result
+  }
 
   let isTesting: boolean | undefined
   let isLocal: boolean | undefined
   let isGitRepo: boolean | undefined
   let appName: string | undefined
+  let initialized = false
 
   if (isLambda) {
     isLocal = bool(process.env.IS_OFFLINE)
@@ -258,10 +370,10 @@ function setup() {
   let root: string | undefined
   let manifest: getAppRootPath.IPackageManifest
 
-  let init: () => void
-
-  sr = function getAppRootPath(): string {
-    init()
+  sr = function(): string {
+    if (!initialized) {
+      init()
+    }
     return root!
   } as getAppRootPath.AppRootPath
 
@@ -282,17 +394,19 @@ function setup() {
   }
 
   function getIsLocal(): boolean {
-    init()
+    if (isLocal === undefined) {
+      init()
+    }
     return isLocal!
   }
 
   function setIsLocal(value: string | boolean): void {
-    isLocal = bool(value) || !!value
-    if (isLocal) {
-      env.isLocal = 'true'
-    } else {
-      delete env.isLocal
+    const v = bool(value)
+    if (v === undefined) {
+      throw new TypeError('isLocal must be a boolean value')
     }
+    isLocal = v
+    env.isLocal = v ? 'true' : undefined
   }
 
   function getIsTesting(): boolean {
@@ -318,43 +432,8 @@ function setup() {
     isTesting = bool(value) || !!value
   }
 
-  function isGlobalDirectory(dir: any): boolean {
-    if (typeof dir !== 'string') {
-      return false
-    }
-    const globalPaths = (cjs as { globalPaths?: string[] }).globalPaths
-    if (globalPaths) {
-      for (let i = 0, len = globalPaths.length; i < len; ++i) {
-        const globalPath = globalPaths[i]
-        if (dir.indexOf(globalPath) === 0) {
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  function isGit(p: string): boolean {
-    try {
-      return fs.statSync(path.join(p, '.git')).isDirectory() && fs.statSync(path.join(p, '.gitignore')).isFile()
-    } catch (_e) {
-      return false
-    }
-  }
-
-  function readManifest(p: string): any {
-    try {
-      const m = JSON.parse(fs.readFileSync(path.join(p, 'package.json')).toString())
-      if (typeof m === 'object' && m !== null && typeof m.name === 'string') {
-        return m
-      }
-    } catch (_e) {}
-    return null
-  }
-
-  init = function(): void {
-    init = doNothing
-
+  function init(): void {
+    initialized = true
     if (isLocal === undefined) {
       isLocal = bool(env.isLocal)
       if (isLocal === undefined) {
@@ -457,14 +536,77 @@ function setup() {
     setIsLocal(isLocal!)
   }
 
+  function createRequireFromPath(filename: string) {
+    const m = new cjs(filename)
+    m.filename = filename
+    m.paths = (cjs as any)._nodeModulePaths(path.dirname(filename))
+    function require(id: string) {
+      return m.require(id)
+    }
+    require.resolve = function resolve(request: any, options: any) {
+      return (cjs as any)._resolveFilename(request, m, false, options)
+    }
+    return require
+  }
+
+  function getModuleFromRequireCache(module: any, caller?: (...args: any[]) => any): any {
+    return requireModule(module, caller || getModuleFromRequireCache, false)
+  }
+
+  function requireModule(module: any, caller?: (...args: any[]) => any, canRequire = true): any {
+    if (typeof module === 'string') {
+      let fname = __dirname
+      const oldStackLimit = Error.stackTraceLimit
+      const oldPrepareStackTrace = Error.prepareStackTrace
+      try {
+        Error.stackTraceLimit = 1
+        Error.prepareStackTrace = (_err: Error, stack: any) => {
+          return (stack && stack[0] && stack[0].getFileName()) || undefined
+        }
+        const obj = { stack: undefined }
+        Error.captureStackTrace(obj, caller || requireModule)
+        fname = obj.stack || __dirname
+      } finally {
+        Error.prepareStackTrace = oldPrepareStackTrace
+        Error.stackTraceLimit = oldStackLimit
+      }
+
+      let customRequire: any
+      if (fname !== __dirname) {
+        customRequire = (cjs.createRequireFromPath || createRequireFromPath)(fname)
+      } else {
+        customRequire = require
+      }
+
+      const modulePath = customRequire.resolve(module)
+      module = require.cache[modulePath]
+      if (!module) {
+        if (!canRequire) {
+          return undefined
+        }
+        customRequire(modulePath)
+        module = require.cache[modulePath]
+      }
+    }
+
+    if (typeof module !== 'object' || module === null) {
+      throw new Error(`Cannot resolve module "${module}"`)
+    }
+    return module
+  }
+
   function coreModule(module: any): any {
+    if (module && module.unloadable) {
+      return module
+    }
+    requireModule(module, coreModule)
     module.unloadable = true
     if (isLambda && !isLocal) {
       return module
     }
-    const key = module.filename
+    const key = module.filename || module.id
     if (typeof key === 'string' && key.length) {
-      Object.defineProperty(require.cache, key, {
+      defineProperty(require.cache, key, {
         get() {
           return module
         },
@@ -476,7 +618,51 @@ function setup() {
     return module
   }
 
+  const nodeModulesPlusSlash = path.sep + 'node_modules' + path.sep
+  const singletonVersionSym = Symbol.for('#singleton-module-version')
+
+  function singletonModule(module: any, activator?: (module: any) => void, version: number = 0): any {
+    module = requireModule(module, singletonModule)
+    if (isLambda && !isLocal) {
+      return coreModule(module)
+    }
+
+    const key = module.filename || module.id
+    if (typeof key !== 'string' || key.length === 0) {
+      return coreModule(module)
+    }
+
+    if (module[singletonVersionSym] !== undefined) {
+      return module
+    }
+
+    let singletonKey = key
+    const indexOfNodeModules = key.lastIndexOf(nodeModulesPlusSlash)
+    if (indexOfNodeModules >= 0) {
+      singletonKey = key.slice(indexOfNodeModules + nodeModulesPlusSlash.length)
+    }
+
+    const found = singletonModules && singletonModules[singletonKey]
+    if (found !== undefined && found[singletonVersionSym] >= version) {
+      module.exports = found.exports
+      coreModule(module)
+      return found
+    }
+
+    if (typeof activator === 'function') {
+      activator(module)
+    }
+    module[singletonVersionSym] = version
+    coreModule(module)
+    if (singletonModules === undefined) {
+      singletonModules = Object.create(null)
+    }
+    singletonModules[singletonKey] = module
+    return module
+  }
+
   async function executeExecutableModule(module: any, functor: () => any): Promise<any> {
+    module = requireModule(module, executeExecutableModule)
     module.executable = true
     const f = functor || module.exports
     let name
@@ -492,8 +678,8 @@ function setup() {
     }
     if (!f.name) {
       try {
-        Object.defineProperty(f, 'name', { value: name, configurable: true, writable: true })
-      } catch (_e) {}
+        defineProperty(f, 'name', { value: name, configurable: true, writable: true })
+      } catch (error) {}
     }
     const n = `- running ${name}`
     console.info(n)
@@ -528,6 +714,9 @@ function setup() {
   }
 
   function getInfo() {
+    if (!initialized) {
+      init()
+    }
     const result = {}
     for (const k of Object.keys(sr)) {
       const v = sr[k]
@@ -538,9 +727,126 @@ function setup() {
     return result
   }
 
+  let terminalColorSupport: number
+  function getTerminalColorSupport() {
+    if (isLambda && !isLocal) {
+      return 0
+    }
+    if (terminalColorSupport === undefined) {
+      terminalColorSupport = loadTerminalColorSupport()
+    }
+    return terminalColorSupport
+  }
+
+  function setTerminalColorSupport(value: any) {
+    if (value === true) {
+      terminalColorSupport = 1
+    } else if (value === false) {
+      terminalColorSupport = 0
+    } else {
+      value = Number.parseInt(value, 10)
+    }
+    if (value < 0) {
+      value = 0
+    }
+    if (value > 3) {
+      value = 3
+    }
+    terminalColorSupport = value
+  }
+
+  function loadTerminalColorSupport() {
+    // Based on https://github.com/chalk/supports-color
+    let forceColor: boolean | undefined
+    if (hasArgvFlag('no-color') || hasArgvFlag('no-colors') || hasArgvFlag('color=false')) {
+      forceColor = false
+    } else if (hasArgvFlag('color') || hasArgvFlag('colors') || hasArgvFlag('color=true') || hasArgvFlag('color=always')) {
+      forceColor = true
+    }
+    const envForceColor = env.FORCE_COLOR
+    if (envForceColor !== undefined) {
+      forceColor = envForceColor.length === 0 || parseInt(envForceColor, 10) !== 0
+    }
+
+    if (forceColor === false) {
+      return 0
+    }
+
+    if (hasArgvFlag('color=16m') || hasArgvFlag('color=full') || hasArgvFlag('color=truecolor')) {
+      return 3
+    }
+
+    if (hasArgvFlag('color=256')) {
+      return 2
+    }
+
+    if ((!process.stdout.isTTY || !process.stderr.isTTY) && forceColor !== true) {
+      return 0
+    }
+
+    const min = forceColor ? 1 : 0
+
+    if (process.platform === 'win32') {
+      // Windows 10 build 14931 is the first release that supports 16m/TrueColor.
+      const osRelease = os.release().split('.')
+      if (Number(process.versions.node.split('.')[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
+        return Number(osRelease[2]) >= 14931 ? 3 : 2
+      }
+      return 1
+    }
+
+    if ('CI' in env) {
+      if ('TRAVIS' in env || 'CIRCLECI' in env || 'APPVEYOR' in env || 'GITLAB_CI' in env || env.CI_NAME === 'codeship') {
+        return 1
+      }
+      return min
+    }
+
+    const teamcityVersion = env.TEAMCITY_VERSION
+    if (typeof teamcityVersion === 'string') {
+      return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(teamcityVersion) ? 1 : 0
+    }
+
+    if (env.COLORTERM === 'truecolor') {
+      return 3
+    }
+
+    const termProgram = env.TERM_PROGRAM
+    if (typeof termProgram === 'string') {
+      if (termProgram === 'iTerm.app') {
+        return parseInt(termProgram.split('.')[0], 10) >= 3 ? 3 : 2
+      }
+      if (termProgram === 'Apple_Terminal.app') {
+        return 2
+      }
+    }
+
+    const envTerm = env.TERM
+    if (typeof envTerm === 'string') {
+      if (/-256(color)?$/i.test(envTerm)) {
+        return 2
+      }
+      if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(envTerm)) {
+        return 1
+      }
+    }
+
+    return 'COLORTERM' in env ? 1 : min
+  }
+
+  if (util.inspect.defaultOptions && !util.inspect.defaultOptions.colors && getTerminalColorSupport() > 0) {
+    util.inspect.defaultOptions.colors = true
+  }
+
   Object.defineProperties(sr, {
+    name: { value: 'getAppRootPath', configurable: true },
+    globalCache: { value: Object.create(null) },
     default: { value: sr, writable: true, configurable: true },
+    getModuleFromRequireCache: { value: getModuleFromRequireCache, writable: true, configurable: true },
+    requireModule: { value: requireModule, writable: true, configurable: true },
+    hasArgvFlag: { value: hasArgvFlag, writable: true, configurable: true },
     coreModule: { value: coreModule, writable: true, configurable: true },
+    singletonModule: { value: singletonModule, writable: true, configurable: true },
     executableModule: { value: executableModule, writable: true, configurable: true },
     getPath: { value: sr },
     setPath: { value: setPath, writable: true },
@@ -555,9 +861,12 @@ function setup() {
     isLocal: { get: getIsLocal, set: setIsLocal, enumerable: true },
     isTesting: { get: getIsTesting, set: setIsTesting, enumerable: true },
     shared: { value: Object.create(null), enumerable: false, configurable: false, writable: false },
+    terminalColorSupport: { get: getTerminalColorSupport, set: setTerminalColorSupport, configurable: true, enumerable: true },
     isGitRepo: {
       get() {
-        init()
+        if (!initialized) {
+          init()
+        }
         return isGitRepo
       },
       enumerable: true
@@ -569,9 +878,11 @@ function setup() {
       },
       enumerable: true
     },
-    name: {
+    applicationName: {
       get() {
-        init()
+        if (!initialized) {
+          init()
+        }
         return appName
       },
       set(value) {
@@ -582,7 +893,9 @@ function setup() {
     },
     manifest: {
       get() {
-        init()
+        if (!initialized) {
+          init()
+        }
         return manifest
       },
       enumerable: false
@@ -595,7 +908,7 @@ function setup() {
     toString: { value: sr, writable: true, configurable: true }
   })
 
-  Object.defineProperty(sr, util.inspect.custom, {
+  defineProperty(sr, util.inspect.custom, {
     value: getInfo,
     writable: true,
     configurable: true
@@ -603,7 +916,10 @@ function setup() {
 
   function doNothing() {}
 
-  Object.defineProperty(require.cache, uniqueSym, { value: sr, configurable: true, writable: true })
+  defineProperty(global, uniqueSym, { value: sr, configurable: true, writable: true })
+
+  module.exports = sr
+  singletonModule(module)
 
   return sr
 }

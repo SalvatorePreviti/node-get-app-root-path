@@ -1,3 +1,6 @@
 {
-  "extends": ["eslint-config-quick"]
+  "extends": ["eslint:recommended", "eslint-config-prettier", "plugin:node/recommended"],
+  "rules": {
+    "no-console": 0
+  }
 }
