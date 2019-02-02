@@ -596,11 +596,13 @@ function setup() {
   }
 
   function coreModule(module: any): any {
-    if (module && module.unloadable) {
+    if (typeof module !== 'object') {
+      module = requireModule(module, coreModule)
+    }
+    if (module.unloadable) {
       return module
     }
-    requireModule(module, coreModule)
-    module.unloadable = true
+    defineProperty(module, 'unloadable', { value: true, configurable: true, writable: true })
     if (isLambda && !isLocal) {
       return module
     }
@@ -623,13 +625,15 @@ function setup() {
 
   function singletonModule(module: any, activator?: (module: any) => void, version: number = 0): any {
     module = requireModule(module, singletonModule)
-    if (isLambda && !isLocal) {
-      return coreModule(module)
-    }
-
     const key = module.filename || module.id
-    if (typeof key !== 'string' || key.length === 0) {
-      return coreModule(module)
+    if ((isLambda && !isLocal) || typeof key !== 'string' || key.length === 0) {
+      if (!module.unloadable) {
+        coreModule(module)
+        if (typeof activator === 'function') {
+          activator(module)
+        }
+      }
+      return module
     }
 
     if (module[singletonVersionSym] !== undefined) {
