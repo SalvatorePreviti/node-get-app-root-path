@@ -210,6 +210,19 @@ namespace getAppRootPath {
     ): Exports
 
     /**
+     * Marks a NodeJS module as a singleton module that should not be unloaded.
+     * Accepts the exports to assign and returns the module exports.
+     *
+     * @template Exports
+     * @param {IModule<Exports>} module NodeJS module
+     * @param {Exports} exports NodeJS exports
+     * @param {(module: IModule<Exports>) => void} [activator] The activator
+     * @param {number} [version] The version
+     * @returns {Exports} The exports
+     */
+    singletonModuleExports<Exports>(module: IModule<Exports>, exports: Exports, version?: number): Exports
+
+    /**
      * Marks a NodeJS module as an executable module.
      * If the module is executed with 'node module.js', the module will be called straight away.
      * When executing it handles promises and sets process exit status code -1 on failure.
@@ -642,11 +655,20 @@ function setup() {
   const singletonVersionSym = Symbol.for('#singleton-module-version')
 
   function singletonModuleExports(module: any, exports: any = module.exports, activator?: (module: any) => void, version: number = 0): any {
+    if (activator !== null && activator !== undefined && typeof activator !== 'function') {
+      if (typeof activator === 'number' && version === undefined) {
+        version = activator
+        activator = undefined
+      } else {
+        throw new TypeError('Activator must be undefined or a function but is ' + typeof activator)
+      }
+    }
+
     return singletonModule(
       module,
       m => {
         m.exports = exports || m.exports
-        if (typeof activator === 'function') {
+        if (activator) {
           activator.call(m.exports, m)
         }
       },
@@ -655,12 +677,21 @@ function setup() {
   }
 
   function singletonModule(module: any, activator?: (module: any) => void, version: number = 0): any {
+    if (activator !== null && activator !== undefined && typeof activator !== 'function') {
+      if (typeof activator === 'number' && version === undefined) {
+        version = activator
+        activator = undefined
+      } else {
+        throw new TypeError('Activator must be undefined or a function but is ' + typeof activator)
+      }
+    }
+
     module = requireModule(module, singletonModule)
     const key = module.filename || module.id
     if ((isLambda && !isLocal) || typeof key !== 'string' || key.length === 0) {
       if (!module.unloadable) {
         coreModule(module)
-        if (typeof activator === 'function') {
+        if (activator) {
           activator.call(module.exports, module)
         }
       }
@@ -684,7 +715,7 @@ function setup() {
       return found
     }
 
-    if (typeof activator === 'function') {
+    if (activator) {
       activator.call(module.exports, module)
     }
     module[singletonVersionSym] = version
