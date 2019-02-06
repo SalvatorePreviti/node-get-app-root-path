@@ -146,10 +146,10 @@ namespace getAppRootPath {
      * Requires a module and returns the module itself instead of the exports.
      *
      * @param {string} id The id or the path of the module to require.
-     * @param {(...args: any) => any} [caller]
+     * @param {Function} [caller]
      * @returns {NodeModule} The resolved module.
      */
-    requireModule(id: string, caller?: (...args: any) => any): NodeModule
+    requireModule(id: string, caller?: Function): NodeModule
 
     /**
      * Gets a module from the cache. Returns undefined if not found.
@@ -214,13 +214,13 @@ namespace getAppRootPath {
      * Accepts the exports to assign and returns the module exports.
      *
      * @template Exports
-     * @param {IModule<Exports>} module NodeJS module
+     * @param {string} module NodeJS module id
      * @param {Exports} exports NodeJS exports
      * @param {(module: IModule<Exports>) => void} [activator] The activator
      * @param {number} [version] The version
      * @returns {Exports} The exports
      */
-    singletonModuleExports<Exports>(module: IModule<Exports>, exports: Exports, version?: number): Exports
+    singletonModuleExports<Exports>(module: string, exports: Exports, version?: number): Exports
 
     /**
      * Marks a NodeJS module as an executable module.
@@ -580,11 +580,11 @@ function setup() {
     return require
   }
 
-  function getModuleFromRequireCache(module: any, caller?: (...args: any[]) => any): any {
+  function getModuleFromRequireCache(module: any, caller?: Function): any {
     return requireModule(module, caller || getModuleFromRequireCache, false)
   }
 
-  function requireModule(module: any, caller?: (...args: any[]) => any, canRequire = true): any {
+  function requireModule(module: any, caller?: Function, canRequire = true): any {
     if (typeof module === 'string') {
       let fname = __dirname
       const oldStackLimit = Error.stackTraceLimit
@@ -672,11 +672,12 @@ function setup() {
           activator.call(m.exports, m)
         }
       },
-      version
+      version,
+      singletonModuleExports
     ).exports
   }
 
-  function singletonModule(module: any, activator?: (module: any) => void, version: number = 0): any {
+  function singletonModule(module: any, activator?: (module: any) => void, version: number = 0, caller: Function = singletonModule): any {
     if (activator !== null && activator !== undefined && typeof activator !== 'function') {
       if (typeof activator === 'number' && version === undefined) {
         version = activator
@@ -686,7 +687,7 @@ function setup() {
       }
     }
 
-    module = requireModule(module, singletonModule)
+    module = requireModule(module, caller)
     const key = module.filename || module.id
     if ((isLambda && !isLocal) || typeof key !== 'string' || key.length === 0) {
       if (!module.unloadable) {
@@ -752,7 +753,7 @@ function setup() {
     console.time(n)
     try {
       await new Promise(setImmediate)
-      await functor()
+      await functor.call(module.exports)
     } catch (error) {
       if (!process.exitCode) {
         process.exitCode = -1
