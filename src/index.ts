@@ -4,7 +4,7 @@ import fs = require('fs')
 import os = require('os')
 import cjs = require('module')
 
-const getAppRootPath: getAppRootPath.AppRootPath = setup()
+let getAppRootPath: getAppRootPath.AppRootPath
 
 namespace getAppRootPath {
   export interface IModule<TExports = any> {
@@ -183,13 +183,31 @@ namespace getAppRootPath {
     singletonModule<TModule extends NodeModule>(module: TModule, activator?: (module: TModule) => void, version?: number): TModule
     singletonModule<TExports, TModule = IModule<TExports>>(
       module: TModule,
-      activator?: (module: TModule) => void,
+      activator?: (this: TExports, module: TModule) => void,
       version?: number
     ): TModule
-    singletonModule<TModule extends IModule>(module: TModule, activator?: (module: TModule) => void, version?: number): TModule
-    singletonModule<TModule>(module: TModule, activator?: (module: TModule) => void, version?: number): TModule
-    singletonModule(module: string, activator?: (module: NodeModule) => void, version?: number): NodeModule
+    singletonModule<TModule extends IModule>(module: TModule, activator?: (this: any, module: TModule) => void, version?: number): TModule
+    singletonModule<TModule>(module: TModule, activator?: (this: any, module: TModule) => void, version?: number): TModule
+    singletonModule(module: string, activator?: (this: any, module: NodeModule) => void, version?: number): NodeModule
     singletonModule(module: any): any
+
+    /**
+     * Marks a NodeJS module as a singleton module that should not be unloaded.
+     * Accepts the exports to assign and returns the module exports.
+     *
+     * @template Exports
+     * @param {IModule<Exports>} module NodeJS module
+     * @param {Exports} exports NodeJS exports
+     * @param {(module: IModule<Exports>) => void} [activator] The activator
+     * @param {number} [version] The version
+     * @returns {Exports} The exports
+     */
+    singletonModuleExports<Exports>(
+      module: IModule<Exports>,
+      exports: Exports,
+      activator?: (this: Exports, module: IModule<Exports>) => void,
+      version?: number
+    ): Exports
 
     /**
      * Marks a NodeJS module as an executable module.
@@ -623,6 +641,19 @@ function setup() {
   const nodeModulesPlusSlash = path.sep + 'node_modules' + path.sep
   const singletonVersionSym = Symbol.for('#singleton-module-version')
 
+  function singletonModuleExports(module: any, exports: any = module.exports, activator?: (module: any) => void, version: number = 0): any {
+    return singletonModule(
+      module,
+      m => {
+        m.exports = exports || m.exports
+        if (typeof activator === 'function') {
+          activator.call(m.exports, m)
+        }
+      },
+      version
+    ).exports
+  }
+
   function singletonModule(module: any, activator?: (module: any) => void, version: number = 0): any {
     module = requireModule(module, singletonModule)
     const key = module.filename || module.id
@@ -630,7 +661,7 @@ function setup() {
       if (!module.unloadable) {
         coreModule(module)
         if (typeof activator === 'function') {
-          activator(module)
+          activator.call(module.exports, module)
         }
       }
       return module
@@ -654,7 +685,7 @@ function setup() {
     }
 
     if (typeof activator === 'function') {
-      activator(module)
+      activator.call(module.exports, module)
     }
     module[singletonVersionSym] = version
     coreModule(module)
@@ -853,6 +884,7 @@ function setup() {
     hasArgvFlag: { value: hasArgvFlag, writable: true, configurable: true },
     coreModule: { value: coreModule, writable: true, configurable: true },
     singletonModule: { value: singletonModule, writable: true, configurable: true },
+    singletonModuleExports: { value: singletonModuleExports, writable: true, configurable: true },
     executableModule: { value: executableModule, writable: true, configurable: true },
     getPath: { value: sr },
     setPath: { value: setPath, writable: true },
@@ -924,10 +956,10 @@ function setup() {
 
   defineProperty(global, uniqueSym, { value: sr, configurable: true, writable: true })
 
-  module.exports = sr
-  singletonModule(module)
-
   return sr
 }
+
+getAppRootPath = setup()
+getAppRootPath = getAppRootPath.singletonModuleExports(module, getAppRootPath)
 
 export = getAppRootPath

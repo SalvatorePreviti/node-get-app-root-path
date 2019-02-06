@@ -86,6 +86,10 @@ function setIsTesting(value: string | boolean): void {
   isTesting = bool(value) || !!value
 }
 
+function singletonModuleExportsFunc(_module: any, exports: any): any {
+  return exports
+}
+
 function moduleFunc(module: any): any {
   if (typeof module === 'string') {
     return require(module)
@@ -121,6 +125,7 @@ Object.defineProperties(_getPath, {
   coreModule: { value: moduleFunc, writable: true, configurable: true },
   requireModule: { value: require, writable: true, configurable: true },
   getModuleFromRequireCache: { value: moduleFunc, writable: true, configurable: true },
+  singletonModuleExports: { value: singletonModuleExportsFunc, writable: true, configurable: true },
   singletonModule: { value: moduleFunc, writable: true, configurable: true },
   executableModule: { value: moduleFunc, writable: true, configurable: true },
   shared: { value: {}, enumerable: false, configurable: false, writable: false },
