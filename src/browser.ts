@@ -97,6 +97,8 @@ function moduleFunc(module: any): any {
   return module
 }
 
+const fieldInit = <T, Q extends T>(v: Q | undefined, f: () => T): T => (v !== undefined ? v : f())
+
 let hasFlagCache: any
 
 function hasArgvFlag(flag: string) {
@@ -122,6 +124,7 @@ function hasArgvFlag(flag: string) {
 Object.defineProperties(_getPath, {
   default: { value: _getPath, writable: true, configurable: true },
   globalCache: { value: Object.create(null) },
+  fieldInit: { value: fieldInit, writable: true, configurable: true },
   coreModule: { value: moduleFunc, writable: true, configurable: true },
   requireModule: { value: require, writable: true, configurable: true },
   getModuleFromRequireCache: { value: moduleFunc, writable: true, configurable: true },

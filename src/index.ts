@@ -173,8 +173,14 @@ namespace getAppRootPath {
     coreModule(module: string): NodeModule
     coreModule(module: any): any
 
+    /** Gets the value of a field. If undefined, calls init() function and uses that value. */
+    fieldInit<T, Q extends T>(field: Q | undefined, init: () => T): T
+
     /**
      * Marks a NodeJS module as a singleton module that should not be unloaded.
+     *
+     * If the given version is a number, the existing module will be replaced if the version is greater.
+     * If the given version is a string or undefined, the module will coexist if another version exists.
      *
      * @template TModule NodeJS module
      * @param {TModule} module NodeJS module
@@ -184,16 +190,23 @@ namespace getAppRootPath {
     singletonModule<TExports, TModule = IModule<TExports>>(
       module: TModule,
       activator?: (this: TExports, module: TModule) => void,
-      version?: number
+      version?: number | string
     ): TModule
-    singletonModule<TModule extends IModule>(module: TModule, activator?: (this: any, module: TModule) => void, version?: number): TModule
-    singletonModule<TModule>(module: TModule, activator?: (this: any, module: TModule) => void, version?: number): TModule
-    singletonModule(module: string, activator?: (this: any, module: NodeModule) => void, version?: number): NodeModule
+    singletonModule<TModule extends IModule>(
+      module: TModule,
+      activator?: (this: any, module: TModule) => void,
+      version?: number | string
+    ): TModule
+    singletonModule<TModule>(module: TModule, activator?: (this: any, module: TModule) => void, version?: number | string): TModule
+    singletonModule(module: string, activator?: (this: any, module: NodeModule) => void, version?: number | string): NodeModule
     singletonModule(module: any): any
 
     /**
      * Marks a NodeJS module as a singleton module that should not be unloaded.
      * Accepts the exports to assign and returns the module exports.
+     *
+     * If the given version is a number, the existing module will be replaced if the version is greater.
+     * If the given version is a string or undefined, the module will coexist if another version exists.
      *
      * @template Exports
      * @param {IModule<Exports>} module NodeJS module
@@ -626,17 +639,21 @@ function setup() {
     return module
   }
 
-  function coreModule(module: any): any {
+  function coreModule(module: any, activator?: (module: any) => any): any {
+    if (activator !== null && activator !== undefined && typeof activator !== 'function') {
+      throw new TypeError('Activator must be undefined or a function but is ' + typeof activator)
+    }
+
     if (typeof module !== 'object') {
       module = requireModule(module, coreModule)
     }
+
     if (module.unloadable) {
       return module
     }
+
     defineProperty(module, 'unloadable', { value: true, configurable: true, writable: true })
-    if (isLambda && !isLocal) {
-      return module
-    }
+
     const key = module.filename || module.id
     if (typeof key === 'string' && key.length) {
       defineProperty(require.cache, key, {
@@ -644,9 +661,14 @@ function setup() {
           return module
         },
         set: doNothing,
-        configurable: true,
-        enumerable: false
+        configurable: true
       })
+    }
+    if (typeof activator === 'function') {
+      const exp = activator.call(module.exports, module)
+      if (exp !== undefined) {
+        module.exports = exp
+      }
     }
     return module
   }
@@ -654,9 +676,16 @@ function setup() {
   const nodeModulesPlusSlash = path.sep + 'node_modules' + path.sep
   const singletonVersionSym = Symbol.for('#singleton-module-version')
 
-  function singletonModuleExports(module: any, exports: any = module.exports, activator?: (module: any) => void, version: number = 0): any {
+  const fieldInit = <T, Q extends T>(v: Q | undefined, f: () => T): T => (v !== undefined ? v : f())
+
+  function singletonModuleExports(
+    module: any,
+    exports: any = module.exports,
+    activator?: (module: any) => any,
+    version: number | string = 0
+  ): any {
     if (activator !== null && activator !== undefined && typeof activator !== 'function') {
-      if (typeof activator === 'number' && version === undefined) {
+      if ((typeof activator === 'number' || typeof activator === 'string') && version === undefined) {
         version = activator
         activator = undefined
       } else {
@@ -667,19 +696,24 @@ function setup() {
     return singletonModule(
       module,
       m => {
-        m.exports = exports || m.exports
-        if (activator) {
-          activator.call(m.exports, m)
+        if (exports !== undefined && exports !== null) {
+          m.exports = exports
         }
+        return activator ? activator.call(m.exports, m) : undefined
       },
       version,
       singletonModuleExports
     ).exports
   }
 
-  function singletonModule(module: any, activator?: (module: any) => void, version: number = 0, caller: Function = singletonModule): any {
+  function singletonModule(
+    module: any,
+    activator?: (module: any) => any,
+    version: number | string = 0,
+    caller: Function = singletonModule
+  ): any {
     if (activator !== null && activator !== undefined && typeof activator !== 'function') {
-      if (typeof activator === 'number' && version === undefined) {
+      if ((typeof activator === 'number' || typeof activator === 'string') && version === undefined) {
         version = activator
         activator = undefined
       } else {
@@ -689,14 +723,8 @@ function setup() {
 
     module = requireModule(module, caller)
     const key = module.filename || module.id
-    if ((isLambda && !isLocal) || typeof key !== 'string' || key.length === 0) {
-      if (!module.unloadable) {
-        coreModule(module)
-        if (activator) {
-          activator.call(module.exports, module)
-        }
-      }
-      return module
+    if (typeof key !== 'string' || !key) {
+      throw new TypeError('Not a valid module')
     }
 
     if (module[singletonVersionSym] !== undefined) {
@@ -708,17 +736,24 @@ function setup() {
     if (indexOfNodeModules >= 0) {
       singletonKey = key.slice(indexOfNodeModules + nodeModulesPlusSlash.length)
     }
+    if (typeof version === 'string') {
+      singletonKey += '@' + version
+    }
 
     const found = singletonModules && singletonModules[singletonKey]
-    if (found !== undefined && found[singletonVersionSym] >= version) {
+    if (found !== undefined && (typeof version === 'string' || found[singletonVersionSym] >= version)) {
       module.exports = found.exports
       coreModule(module)
       return found
     }
 
     if (activator) {
-      activator.call(module.exports, module)
+      const exp = activator.call(module.exports, module)
+      if (exp !== undefined && !(exp instanceof Promise)) {
+        module.exports = exp
+      }
     }
+
     module[singletonVersionSym] = version
     coreModule(module)
     if (singletonModules === undefined) {
@@ -914,6 +949,7 @@ function setup() {
     getModuleFromRequireCache: { value: getModuleFromRequireCache, writable: true, configurable: true },
     requireModule: { value: requireModule, writable: true, configurable: true },
     hasArgvFlag: { value: hasArgvFlag, writable: true, configurable: true },
+    fieldInit: { value: fieldInit, writable: true, configurable: true },
     coreModule: { value: coreModule, writable: true, configurable: true },
     singletonModule: { value: singletonModule, writable: true, configurable: true },
     singletonModuleExports: { value: singletonModuleExports, writable: true, configurable: true },
