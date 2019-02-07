@@ -173,8 +173,11 @@ namespace getAppRootPath {
     coreModule(module: string): NodeModule
     coreModule(module: any): any
 
-    /** Gets the value of a field. If undefined, calls init() function and uses that value. */
-    fieldInit<T, Q extends T>(field: Q | undefined, init: () => T): T
+    /** Returns the specified value. If undefined, calls initialize() function and uses the return value. */
+    fieldInit(value: undefined, initialize: () => never): never
+    fieldInit<T>(value: T, initialize: () => never): T
+    fieldInit<T, Q extends T = T>(value: T | undefined, initialize: () => Q): T
+    fieldInit<F extends () => any>(value: ReturnType<F> | undefined, initialize: F): ReturnType<F>
 
     /**
      * Marks a NodeJS module as a singleton module that should not be unloaded.
@@ -676,7 +679,7 @@ function setup() {
   const nodeModulesPlusSlash = path.sep + 'node_modules' + path.sep
   const singletonVersionSym = Symbol.for('#singleton-module-version')
 
-  const fieldInit = <T, Q extends T>(v: Q | undefined, f: () => T): T => (v !== undefined ? v : f())
+  const fieldInit = <F extends () => any>(v: ReturnType<F> | undefined, f: F): ReturnType<F> => (v !== undefined ? v : f())
 
   function singletonModuleExports(
     module: any,

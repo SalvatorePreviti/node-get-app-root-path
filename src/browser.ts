@@ -97,7 +97,7 @@ function moduleFunc(module: any): any {
   return module
 }
 
-const fieldInit = <T, Q extends T>(v: Q | undefined, f: () => T): T => (v !== undefined ? v : f())
+const fieldInit = <F extends () => any>(v: ReturnType<F> | undefined, f: F): ReturnType<F> => (v !== undefined ? v : f())
 
 let hasFlagCache: any
 
