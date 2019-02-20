@@ -1,6 +1,6 @@
 {
   "name": "get-app-root-path",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "Get the root folder of the running node application",
   "main": "index.js",
   "browser": {
