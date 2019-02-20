@@ -453,7 +453,11 @@ function setup() {
       throw new TypeError('isLocal must be a boolean value')
     }
     isLocal = v
-    env.isLocal = v ? 'true' : undefined
+    if (v) {
+      env.isLocal = 'true'
+    } else {
+      delete env.isLocal
+    }
   }
 
   function getIsTesting(): boolean {
