@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
-    "declaration": true,
+    "declaration": false,
+    "removeComments": true,
     "declarationMap": false,
     "experimentalDecorators": false,
     "forceConsistentCasingInFileNames": true,
@@ -8,6 +9,7 @@
     "lib": ["esnext"],
     "module": "commonjs",
     "newLine": "LF",
+    "esModuleInterop": false,
     "noEmit": false,
     "noEmitHelpers": true,
     "moduleResolution": "node",

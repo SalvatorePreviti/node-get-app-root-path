@@ -1,5 +1,3 @@
-/* eslint-disable no-func-assign */
-
 import fs = require('fs')
 import os = require('os')
 import np = require('path')

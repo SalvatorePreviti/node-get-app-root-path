@@ -4,6 +4,7 @@
     "no-empty": 0,
     "no-shadow": 0,
     "node/exports-style": 0,
-    "global-require": 0
+    "global-require": 0,
+    "no-func-assign": 0
   }
 }

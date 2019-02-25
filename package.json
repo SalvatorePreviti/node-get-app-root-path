@@ -6,7 +6,7 @@
   "types": "index.d.ts",
   "private": true,
   "scripts": {
-    "compile": "tsc && eslint -c dist/.eslintrc.json --fix dist/**/*.js && prettier --write dist/**/*.js dist/**/*.ts dist/**/*.json && cp README.md dist/README.md",
+    "compile": "tsc && tsc --project tsconfig.declarations.json && eslint -c dist/.eslintrc.json --fix dist/**/*.js && prettier --write dist/**/*.js dist/**/*.ts dist/**/*.json && cp README.md dist/README.md",
     "test": "jest"
   },
   "repository": {

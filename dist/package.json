@@ -3,9 +3,6 @@
   "version": "0.0.18",
   "description": "Get the root folder of the running node application",
   "main": "index.js",
-  "browser": {
-    "index.js": "browser.js"
-  },
   "types": "index.d.ts",
   "scripts": {
     "doc": "documentation readme index.js --section=API"
