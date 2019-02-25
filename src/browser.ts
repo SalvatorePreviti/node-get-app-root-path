@@ -159,7 +159,7 @@ Object.defineProperties(_getPath, {
   }
 })
 
-export const getPath = _getPath as AppRootPath
+export const getPath: AppRootPath = _getPath as AppRootPath
 export namespace getAppRootPath {
   // tslint:disable-next-line:no-shadowed-variable
   export type AppRootPath = AppRootPathType
