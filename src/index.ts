@@ -9,7 +9,7 @@ const sym = Symbol.for('⭐ get-app-root-path-state ⭐')
 const versionSym = Symbol.for('#singleton-module-version')
 
 const nmpath = np.sep + 'node_modules' + np.sep
-const { defineProperty } = Reflect
+const defProp = Reflect.defineProperty
 const { create } = Object
 
 class State {
@@ -18,7 +18,7 @@ class State {
   public singletonModules: any = create(null)
   public globalCache: { [key: string]: any } = create(null)
   public shared: { [key: string]: any } = create(null)
-  public moduleInitialized = false
+  public modInitialized = false
   public initialized = false
   public env: NodeJS.ProcessEnv
   public initialCwd: string
@@ -62,7 +62,7 @@ function getAppRootPath(): string {
 let S: State = global[sym]
 if (!S) {
   S = new State()
-  defineProperty(global, sym, { value: S, configurable: true })
+  defProp(global, sym, { value: S, configurable: true })
 } else if (S.version < VERSION) {
   S.version = VERSION
   S.init = init
@@ -422,11 +422,11 @@ namespace getAppRootPath {
       return module
     }
 
-    defineProperty(module, 'unloadable', { value: true, configurable: true, writable: true })
+    defProp(module, 'unloadable', { value: true, configurable: true, writable: true })
 
     const key = module.filename || module.id
     if (typeof key === 'string' && key.length) {
-      defineProperty(require.cache, key, {
+      defProp(require.cache, key, {
         get() {
           return module
         },
@@ -449,9 +449,9 @@ namespace getAppRootPath {
   export function fieldInit(value: undefined, initialize: () => never): never
   export function fieldInit<T>(value: T, initialize: () => never): T
   export function fieldInit<T, Q extends T = T>(value: T | undefined, initialize: () => Q): T
-  export function fieldInit<F extends () => any>(value: ReturnType<F> | undefined, initialize: F): ReturnType<F>
-  export function fieldInit<F extends () => any>(v: ReturnType<F> | undefined, f: F): ReturnType<F>
-  export function fieldInit<F extends () => any>(v: ReturnType<F> | undefined, f: F): ReturnType<F> {
+  export function fieldInit<R extends () => any>(value: ReturnType<R> | undefined, initialize: R): ReturnType<R>
+  export function fieldInit<R extends () => any>(v: ReturnType<R> | undefined, f: R): ReturnType<R>
+  export function fieldInit<R extends () => any>(v: ReturnType<R> | undefined, f: R): ReturnType<R> {
     return v !== undefined ? v : f()
   }
 
@@ -734,7 +734,7 @@ function isGit(p: string): boolean {
   }
 }
 
-function readManifest(p: string): any {
+function readPkg(p: string): any {
   try {
     const m = JSON.parse(fs.readFileSync(np.join(p, 'package.json')).toString())
     if (typeof m === 'object' && m !== null && typeof m.name === 'string') {
@@ -773,7 +773,7 @@ async function executeModule(module: any, functor: () => any): Promise<any> {
   }
   if (!functor.name) {
     try {
-      defineProperty(functor, 'name', { value: name, configurable: true, writable: true })
+      defProp(functor, 'name', { value: name, configurable: true, writable: true })
     } catch (error) {}
   }
   const n = `- running ${name}`
@@ -830,7 +830,7 @@ Object.defineProperties(getAppRootPath, {
         return 0
       }
       if (S.terminalColorSupport === undefined) {
-        S.terminalColorSupport = loadColorSupport()
+        S.terminalColorSupport = loadColors()
       }
       return S.terminalColorSupport
     },
@@ -888,7 +888,7 @@ Object.defineProperties(getAppRootPath, {
   }
 })
 
-function loadColorSupport() {
+function loadColors() {
   const has = getAppRootPath.hasArgvFlag
   // Based on https://github.com/chalk/supports-color
   let forceColor: boolean | undefined
@@ -1005,7 +1005,7 @@ function init() {
 
     let home: string | undefined
     for (let current = root; current; ) {
-      const m = readManifest(current)
+      const m = readPkg(current)
       if (m) {
         S.manifest = m
         const isRoot = bool(m.root)
@@ -1035,7 +1035,7 @@ function init() {
   }
 
   if (S.manifest === undefined) {
-    S.manifest = readManifest(root)
+    S.manifest = readPkg(root)
   }
 
   if (S.isGitRepo === undefined) {
@@ -1070,8 +1070,8 @@ function init() {
   }
 }
 
-defineProperty(module, 'unloadable', { value: true, configurable: true, writable: true })
-defineProperty(module, 'exports', {
+defProp(module, 'unloadable', { value: true, configurable: true, writable: true })
+defProp(module, 'exports', {
   get() {
     return S.getAppRootPath
   },
@@ -1080,7 +1080,7 @@ defineProperty(module, 'exports', {
   enumerable: true
 })
 
-defineProperty(require.cache, module.filename, {
+defProp(require.cache, module.filename, {
   get() {
     return module
   },
@@ -1089,9 +1089,9 @@ defineProperty(require.cache, module.filename, {
   enumerable: true
 })
 
-if (!S.moduleInitialized) {
-  S.moduleInitialized = true
-  defineProperty(global, Symbol.for('⭐ get-app-root-path ⭐'), { value: S.getAppRootPath, configurable: true, writable: true })
+if (!S.modInitialized) {
+  S.modInitialized = true
+  defProp(global, Symbol.for('⭐ get-app-root-path ⭐'), { value: S.getAppRootPath, configurable: true, writable: true })
   if (ut.inspect.defaultOptions && !ut.inspect.defaultOptions.colors && getAppRootPath.terminalColorSupport > 0) {
     ut.inspect.defaultOptions.colors = true
   }
