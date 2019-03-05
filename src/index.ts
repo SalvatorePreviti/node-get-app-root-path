@@ -18,6 +18,12 @@ interface AppRootPath {
   (): string
 
   /**
+   * The getAppRootPath numeric version
+   * @type {number}
+   */
+  readonly version: number
+
+  /**
    * The root package.json manifest.
    * @type {AppRootPath.IPackageManifest}
    */
@@ -85,7 +91,6 @@ class AppRootPath implements AppRootPath {
    */
   public readonly globalCache: { [key: string]: any } = Object.create(null)
 
-  public readonly version: number = VERSION
   public readonly AppRootPath: typeof AppRootPath = AppRootPath
 
   public readonly env: NodeJS.ProcessEnv
@@ -1080,6 +1085,10 @@ function setup(r: AppRootPath): AppRootPath {
     }
   }
   Object.defineProperties(r, {
+    version: {
+      value: VERSION,
+      configurable: true
+    },
     isLocal: {
       get: r.getIsLocal,
       set: r.setIsLocal,
@@ -1131,13 +1140,13 @@ function setup(r: AppRootPath): AppRootPath {
 }
 
 let getAppRootPath: AppRootPath = global[sym]
-if (!getAppRootPath || !getAppRootPath.version) {
+if (!getAppRootPath) {
   getAppRootPath = new AppRootPath(process.env)
   defProp(global, sym, { value: getAppRootPath, configurable: true, writable: true })
   if (util.inspect.defaultOptions && !util.inspect.defaultOptions.colors && getAppRootPath.terminalColorSupport > 0) {
     util.inspect.defaultOptions.colors = true
   }
-} else if (VERSION >= getAppRootPath.version) {
+} else if (VERSION > getAppRootPath.version) {
   Object.defineProperties(Object.getPrototypeOf(getAppRootPath), Object.getOwnPropertyDescriptors(AppRootPath.prototype))
   Object.setPrototypeOf(getAppRootPath, AppRootPath.prototype)
   setup(getAppRootPath)
