@@ -494,11 +494,19 @@ class AppRootPath implements AppRootPath {
       singletonKey += '@' + version
     }
 
-    const found = this._singletonModules[singletonKey]
-    if (found !== undefined && (typeof version === 'string' || found[versionSym] >= version)) {
-      module.exports = found.exports
+    const foundModule = this._singletonModules[singletonKey]
+    if (foundModule !== undefined && (typeof version === 'string' || foundModule[versionSym] >= version)) {
+      module.exports = foundModule.exports
+      defProp(module, 'exports', {
+        get() {
+          return foundModule.exports
+        },
+        set() {},
+        configurable: true,
+        enumerable: true
+      })
       this.coreModule(module, undefined, caller)
-      return found
+      return foundModule
     }
 
     if (activator) {
@@ -1171,3 +1179,5 @@ defProp(require.cache, module.filename, {
 })
 
 export = getAppRootPath
+
+getAppRootPath.singletonModule(module)
